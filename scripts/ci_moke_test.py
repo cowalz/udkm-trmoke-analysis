@@ -27,12 +27,12 @@ def main() -> None:
     proposal.spice.seed({"t0": 0})
     proposal.process([6, 11, 12], overwrite=True)
 
-    print(proposal.p0011)
+    print(proposal.data.p0011)
 
     proposal.spice.update(11, {"t0": 0.5})
     proposal.process([6, 11, 12], overwrite=True)
 
-    print(proposal.p0011)
+    print(proposal.data.p0011)
 
     print("CI moke test completed successfully.")
 
