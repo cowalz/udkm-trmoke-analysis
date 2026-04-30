@@ -1,0 +1,22 @@
+stages:
+  - lint
+  - test
+
+ruff_check:
+  stage: lint
+  image: python:3.14-slim
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install ruff
+  script:
+    - ruff format --isolated --check --config 'line-length = 120' --config 'format.quote-style = "double"' $(git ls-files '*.py')
+    - ruff check --isolated --config 'line-length = 120' --select E,F,W,B,I --ignore E402 $(git ls-files '*.py')
+
+smoke_test:
+  stage: test
+  image: python:3.14-slim
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -r requirements.txt
+  script:
+    - python scripts/ci_moke_test.py

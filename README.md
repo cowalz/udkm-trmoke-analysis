@@ -1,5 +1,8 @@
 # trMOKE Analysis
 
+## Continuous Integration
+
+A minimal GitLab CI smoke test lives in [scripts/ci_smoke_test.py](scripts/ci_smoke_test.py). It runs the notebook's data-reduction path without plotting, processes the example scans, and checks that the expected processed NetCDF files are written.
 
 
 ## Getting started
