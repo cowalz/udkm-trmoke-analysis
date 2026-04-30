@@ -11,8 +11,8 @@ ruff_check:
     - python -m pip install --upgrade pip
     - pip install ruff
   script:
-    - ruff format --isolated --check --config 'line-length = 120' --config 'format.quote-style = "double"' $(git ls-files '*.py')
-    - ruff check --isolated --config 'line-length = 120' --select E,F,W,B,I --ignore E402 $(git ls-files '*.py')
+    - ruff format --isolated --check --config 'line-length = 120' --config 'format.quote-style = "double"' $(find . -type f -name '*.py' -not -path './.venv/*' -not -path './.git/*')
+    - ruff check --isolated --config 'line-length = 120' --select E,F,W,B,I --ignore E402 $(find . -type f -name '*.py' -not -path './.venv/*' -not -path './.git/*')
 
 smoke_test:
   stage: test
