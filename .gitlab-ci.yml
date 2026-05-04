@@ -14,13 +14,13 @@ ruff_check:
     - ruff format --isolated --check --config 'line-length = 120' --config 'format.quote-style = "double"' $(find . -type f -name '*.py' -not -path './.venv/*' -not -path './.git/*')
     - ruff check --isolated --config 'line-length = 120' --select E,F,W,B,I --ignore E402 $(find . -type f -name '*.py' -not -path './.venv/*' -not -path './.git/*')
 
-smoke_test:
+moke_test:
   stage: test
   image: python:3.14-slim
   tags:
     - public
   before_script:
     - python -m pip install --upgrade pip
-    - pip install -r requirements.txt
+    - pip install -e .
   script:
-    - python scripts/ci_moke_test.py
+    - python .scripts/ci_moke_test.py

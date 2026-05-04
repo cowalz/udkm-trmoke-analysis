@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trmoke_analysis"
+version = "1.0.0"
+description = "trMOKE analysis tools"
+readme = "README.md"
+requires-python = ">=3.12"
+keywords = ["udkm", "Raman", "data analysis"]
+authors = [
+  {name = "UDKM", email = "udkm-group@uni-potsdam.de"},
+  {name = "Constantin Walz", email = "cwalz@uni-potsdam.de"}
+]
+maintainers = [
+  {name = "Constantin Walz", email = "cwalz@uni-potsdam.de"}
+]
+dependencies = [
+    "astropy>=7.2.0",
+    "ipykernel>=7.2.0",
+    "matplotlib>=3.10.9",
+    "netCDF4>=1.7.4",
+    "tqdm>=4.67.3",
+    "xarray>=2026.4.0"
+]
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["Examples*", "Remote*", "Scripts*", ".venv*"]

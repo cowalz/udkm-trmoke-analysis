@@ -12,7 +12,7 @@ def main() -> None:
     os.chdir(REPO_ROOT)
     sys.path.insert(0, str(REPO_ROOT))
 
-    from datareduction import DataProposal
+    from trmoke_analysis.datareduction import DataProposal
 
     # Notebook flow without the plotting cells.
     proposal = DataProposal(

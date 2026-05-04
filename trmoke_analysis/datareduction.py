@@ -7,18 +7,17 @@ import time
 import numpy as np
 import pandas as pd
 import xarray as xr
-from tqdm import tqdm
 
 # Recipes import
-from Recipes.hysteresis import process_hysteresis
-from Recipes.moke_pp import process_moke_pp
+from recipes.hysteresis import process_hysteresis
+from recipes.moke_pp import process_moke_pp
+from tqdm import tqdm
 
 # -----------------------------
 #  Data Evaluation
 # -----------------------------
 
 # Class based data analysis approach
-# Abstract base class defines basic functionality.
 
 # Proposal class:
 # read raw data (e.g. on a server or from local files)
@@ -322,10 +321,6 @@ class DataProposal:
             # Save processed data to new NetCDF file
             processed_data.to_netcdf(processed_file_path)
             print(f"Processed data saved to {processed_file_path}.")
-
-    def get_latest_spice(self) -> None:
-        """
-        Automatically load the last saved spice configuration from the local spice folder based on the"""
 
 
 class ScanAccessor:
