@@ -7,11 +7,11 @@ import time
 import numpy as np
 import pandas as pd
 import xarray as xr
+from tqdm import tqdm
 
 # Recipes import
-from recipes.hysteresis import process_hysteresis
-from recipes.moke_pp import process_moke_pp
-from tqdm import tqdm
+from trmoke_analysis.recipes.hysteresis import process_hysteresis
+from trmoke_analysis.recipes.moke_pp import process_moke_pp
 
 # -----------------------------
 #  Data Evaluation
