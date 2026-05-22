@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "trmoke_analysis"
-version = "1.0.0"
+version = "1.0.1"
 description = "trMOKE analysis tools"
 readme = "README.md"
-requires-python = ">=3.12"
-keywords = ["udkm", "Raman", "data analysis"]
+requires-python = ">=3.11"
+keywords = ["udkm", "MOKE", "data analysis"]
 authors = [
   {name = "UDKM", email = "udkm-group@uni-potsdam.de"},
   {name = "Constantin Walz", email = "cwalz@uni-potsdam.de"}

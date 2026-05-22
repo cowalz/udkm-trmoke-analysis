@@ -7,16 +7,18 @@ Intended for usage with data generated from the [2nd generation trMOKE measureme
 
 ### Requirements
 
-- Python 3.12 or higher
+- Python 3.11 or higher
 
 ### Setup
 
-Clone the repository and install with pip in editable mode:
+Clone the repository somewhere on your local machine:
 
 ```bash
 git clone git@gitup.uni-potsdam.de:udkm/lab-software/trmoke.git
-cd trmoke-analysis
-pip install -e .
+```
+In you project venv, install with pip:
+```bash
+pip install /path/to/cloned/repo/
 ```
 
 This installs the `trmoke_analysis` package along with all runtime dependencies:
@@ -27,7 +29,9 @@ This installs the `trmoke_analysis` package along with all runtime dependencies:
 - tqdm
 - xarray
 
-Update the package by pulling the latest changes from the git repo using `git pull` should automatically update the package when installed in editable mode. In case of issues, you can also run `pip install -e .` again to ensure all dependencies are up to date.
+Pulling the latest changes from the git repo using `git pull` requires reinstalling the package with pip to update the installed version.
+
+If you have installed the package in editable mode using `pip install -e`, then pulling the latest changes should automatically update the package without needing to reinstall. However, this breaks compatibility with common code analysis tools like pylance, so we recommend the standard non-editable installation.
 ## Usage
 
 See [Examples/example.ipynb](Examples/example.ipynb) for a complete workflow example.

@@ -141,12 +141,11 @@ class DataProposal:
 
         if not files_to_copy:
             print(f"Local cache is up to date ({len(server_files)} files).")
-            return
-
-        print(f"Syncing {len(files_to_copy)}/{len(server_files)} files from server...")
-        for f in tqdm(sorted(files_to_copy)):
-            shutil.copy2(os.path.join(self.server_path, f), os.path.join(self.local_path, f))
-        print("Sync complete.")
+        else:
+            print(f"Syncing {len(files_to_copy)}/{len(server_files)} files from server...")
+            for f in tqdm(sorted(files_to_copy)):
+                shutil.copy2(os.path.join(self.server_path, f), os.path.join(self.local_path, f))
+            print("Sync complete.")
 
         # Update overview and registry after syncing
         self.proposal_overview = self._build_proposal_overview()
