@@ -7,6 +7,7 @@ name = "trmoke_analysis"
 version = "1.0.1"
 description = "trMOKE analysis tools"
 readme = "README.md"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 keywords = ["udkm", "MOKE", "data analysis"]
 authors = [
@@ -26,4 +27,4 @@ dependencies = [
 ]
 [tool.setuptools.packages.find]
 where = ["."]
-exclude = ["Examples*", "Remote*", "Scripts*", ".venv*"]
+exclude = ["Examples*", "Remote*", ".scripts*", ".venv*"]
