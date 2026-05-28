@@ -16,7 +16,7 @@ In you project venv, install the latest release with pip:
 pip install git+https://gitup.uni-potsdam.de/udkm/tools/trmoke-analysis@main
 ```
 Replace `main` with `develop` tag if you want to install the potentially unstable development version.
-For previous version, replace `main` with the desired version tag, e.g. `1.0.0`.
+For a previous version, replace `main` with the desired version tag, e.g. `1.0.0`.
 
 This installs the `trmoke_analysis` package along with all runtime dependencies:
 - astropy
@@ -26,9 +26,6 @@ This installs the `trmoke_analysis` package along with all runtime dependencies:
 - tqdm
 - xarray
 
-Pulling the latest changes from the git repo using `git pull` requires reinstalling the package with pip to update the installed version.
-
-If you have installed the package in editable mode using `pip install -e`, then pulling the latest changes should automatically update the package without needing to reinstall. However, this breaks compatibility with common code analysis tools like pylance, so we recommend the standard non-editable installation.
 ## Usage
 
 See [Examples/example.ipynb](Examples/example.ipynb) for a complete workflow example.
