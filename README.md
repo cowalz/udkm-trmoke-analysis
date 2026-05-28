@@ -37,7 +37,7 @@ To contribute/push to the project, you need a GitUP account and be a member of t
 To change the source code, first clone the repository somewhere on your local machine:
 
 ```bash
-git clone git@gitup.uni-potsdam.de:udkm/lab-software/trmoke.git
+git clone git@gitup.uni-potsdam.de:udkm/tools/trmoke-analysis.git
 ```
 and switch to the develop branch:
 ```bash
