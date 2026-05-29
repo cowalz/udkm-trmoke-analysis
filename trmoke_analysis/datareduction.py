@@ -324,7 +324,7 @@ class DataProposal:
             processed_data.to_netcdf(processed_file_path)
             print(f"Processed data saved to {processed_file_path}.")
 
-    def plot_loopwise(self, scan_id: str | int, detector: int = 0):
+    def plot_loopwise(self, scan_id: str | int, detector_idx: int = 0):
         try:
             dataset = self._load(scan_id, kind="processed")
         except FileNotFoundError:
@@ -332,13 +332,13 @@ class DataProposal:
             return
         scan_type = dataset.attrs.get("scan_parameter", "Unknown")
         if scan_type in ["delay", "fluence", "field"]:
-            plotting.plot_loopwise_moke_pp(dataset, detector=detector)
+            plotting.plot_loopwise_moke_pp(dataset, detector_idx=detector_idx)
         elif scan_type == "hysteresis":
-            plotting.plot_loopwise_hysteresis(dataset, detector=detector)
+            plotting.plot_loopwise_hysteresis(dataset, detector_idx=detector_idx)
         else:
             print(f"Quick plotting not implemented for scan type '{scan_type}'.")
 
-    def plot_overview(self, scan_id: str | int, detector: int = 0):
+    def plot_overview(self, scan_id: str | int, detector_idx: int = 0):
         try:
             dataset = self._load(scan_id, kind="processed")
         except FileNotFoundError:
@@ -346,9 +346,9 @@ class DataProposal:
             return
         scan_type = dataset.attrs.get("scan_parameter", "Unknown")
         if scan_type in ["delay", "fluence", "field"]:
-            plotting.plot_overview_moke_pp(dataset, detector=detector)
+            plotting.plot_overview_moke_pp(dataset, detector_idx=detector_idx)
         elif scan_type == "hysteresis":
-            plotting.plot_overview_hysteresis(dataset, detector=detector)
+            plotting.plot_overview_hysteresis(dataset, detector_idx=detector_idx)
         else:
             print(f"Overview plotting not implemented for scan type '{scan_type}'.")
 
