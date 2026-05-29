@@ -4,9 +4,11 @@
 
 import numpy as np
 import xarray as xr
-from astropy.stats import sigma_clip  # advanced sigmaclipping with axis support
 
-from .helpers import calculate_pump_unpump_difference
+if __package__:
+    from . import helpers
+else:
+    import helpers
 
 
 def process_moke_pp(data: xr.Dataset, spice: dict) -> xr.Dataset:
@@ -36,7 +38,9 @@ def process_moke_pp(data: xr.Dataset, spice: dict) -> xr.Dataset:
     # Step 2: Calculate pumped - unpumped for each detector
     processed_data = {}
     for det_idx in range(3):
-        processed_data[f"detector_{det_idx}"] = calculate_pump_unpump_difference(data_unchop, data_chop, det_idx)
+        processed_data[f"detector_{det_idx}"] = helpers.calculate_pump_unpump_difference(
+            data_unchop, data_chop, det_idx
+        )
 
     # Step 3: Organize into xarray with proper structure
     # Create empty arrays for each detector: [fluence, field, delay, loop]
@@ -99,14 +103,16 @@ def process_moke_pp(data: xr.Dataset, spice: dict) -> xr.Dataset:
     # Step 6: Average over loops (last dimension) and apply sigmaclipping if specified in spice
     # signal arrays are [detector, fluence, field, delay, loop]
     sigma = spice.get("sigma", -1)
-    if sigma > 0:
-        signal_sum_clipped = sigma_clip(signal_sum, sigma=sigma, axis=-1, masked=False)
-        signal_diff_clipped = sigma_clip(signal_diff, sigma=sigma, axis=-1, masked=False)
-        signal_sum_avg = np.nanmean(signal_sum_clipped, axis=-1)
-        signal_diff_avg = np.nanmean(signal_diff_clipped, axis=-1)
-    else:
-        signal_sum_avg = np.nanmean(signal_sum, axis=-1)  # Result: [detector, fluence, field, delay]
-        signal_diff_avg = np.nanmean(signal_diff, axis=-1)
+    signal_sum_avg = helpers.average_with_clip(signal_sum, sigma=sigma)  # Result: [detector, fluence, field, delay]
+    signal_diff_avg = helpers.average_with_clip(signal_diff, sigma=sigma)  # Result: [detector, fluence, field, delay]
+    # if sigma > 0:
+    #     signal_sum_clipped = sigma_clip(signal_sum, sigma=sigma, axis=-1, masked=False)
+    #     signal_diff_clipped = sigma_clip(signal_diff, sigma=sigma, axis=-1, masked=False)
+    #     signal_sum_avg = np.nanmean(signal_sum_clipped, axis=-1)
+    #     signal_diff_avg = np.nanmean(signal_diff_clipped, axis=-1)
+    # else:
+    #     signal_sum_avg = np.nanmean(signal_sum, axis=-1)  # Result: [detector, fluence, field, delay]
+    #     signal_diff_avg = np.nanmean(signal_diff, axis=-1)
 
     # Step 7: Create final xarray Dataset
     processed_dataset = xr.Dataset(
