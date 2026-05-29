@@ -125,7 +125,6 @@ def plot_overview_moke_pp(processed_dataset: xr.Dataset, detector_idx: int = 0):
     """
     scan_param = processed_dataset.attrs["scan_param"]
     param1 = processed_dataset.attrs["param1"]
-    param2 = processed_dataset.attrs["param2"]
 
     for param1_idx in range(len(processed_dataset[param1].values)):
         fig, ax = plt.subplots(2, 1, dpi=300, figsize=(5, 5), sharex=True)
@@ -158,7 +157,6 @@ def plot_overview_hysteresis(processed_dataset: xr.Dataset, detector_idx: int = 
     """
     scan_param = processed_dataset.attrs["scan_param"]
     param1 = processed_dataset.attrs["param1"]
-    param2 = processed_dataset.attrs["param2"]
 
     for param1_idx in range(len(processed_dataset[param1].values)):
         fig, ax = plt.subplots(2, 1, dpi=300, figsize=(5, 5), sharex=True)

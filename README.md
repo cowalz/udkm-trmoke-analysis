@@ -23,6 +23,7 @@ This installs the `trmoke_analysis` package along with all runtime dependencies:
 - ipykernel
 - matplotlib
 - netCDF4
+- scipy
 - tqdm
 - xarray
 
