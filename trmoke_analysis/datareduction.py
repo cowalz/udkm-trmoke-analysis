@@ -9,6 +9,9 @@ import pandas as pd
 import xarray as xr
 from tqdm import tqdm
 
+# Plotting import
+from trmoke_analysis import plotting
+
 # Recipes import
 from trmoke_analysis.recipes.hysteresis import process_hysteresis
 from trmoke_analysis.recipes.moke_pp import process_moke_pp
@@ -320,6 +323,34 @@ class DataProposal:
             # Save processed data to new NetCDF file
             processed_data.to_netcdf(processed_file_path)
             print(f"Processed data saved to {processed_file_path}.")
+
+    def plot_loopwise(self, scan_id: str | int, detector: int = 0):
+        try:
+            dataset = self._load(scan_id, kind="processed")
+        except FileNotFoundError:
+            print(f"Processed data not found for scan {scan_id}. Maybe the data is not processed yet.")
+            return
+        scan_type = dataset.attrs.get("scan_parameter", "Unknown")
+        if scan_type in ["delay", "fluence", "field"]:
+            plotting.plot_loopwise_moke_pp(dataset, detector=detector)
+        elif scan_type == "hysteresis":
+            plotting.plot_loopwise_hysteresis(dataset, detector=detector)
+        else:
+            print(f"Quick plotting not implemented for scan type '{scan_type}'.")
+
+    def plot_overview(self, scan_id: str | int, detector: int = 0):
+        try:
+            dataset = self._load(scan_id, kind="processed")
+        except FileNotFoundError:
+            print(f"Processed data not found for scan {scan_id}. Maybe the data is not processed yet.")
+            return
+        scan_type = dataset.attrs.get("scan_parameter", "Unknown")
+        if scan_type in ["delay", "fluence", "field"]:
+            plotting.plot_overview_moke_pp(dataset, detector=detector)
+        elif scan_type == "hysteresis":
+            plotting.plot_overview_hysteresis(dataset, detector=detector)
+        else:
+            print(f"Overview plotting not implemented for scan type '{scan_type}'.")
 
 
 class ScanAccessor:
