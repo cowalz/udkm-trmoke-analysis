@@ -49,4 +49,3 @@ can apply.
 | `drift_correct` | Whether to apply drift correction to the signal, which can help remove slow drifts in the data | hysteresis | bool (default: False) |
 | `shift_hysteresis` | Whether to shift the hysteresis loops along the y-axis (along the magnetization axis) | hysteresis | bool (default: False) |
 | `shift_hysteresis_x` | Whether to shift the hysteresis loops along the x-axis (along the field axis). Requires `shift_hysteresis` == True | hysteresis | bool (default: False) |
-|

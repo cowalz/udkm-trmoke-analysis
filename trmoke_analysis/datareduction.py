@@ -103,7 +103,7 @@ class DataProposal:
                     latest_file, latest_timestamp = max(timestamps, key=lambda x: x[1])
                     latest_date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(latest_timestamp))
                     if autofetch_spice:
-                        f"Existing spice configuration found: {latest_file} (created on {latest_date})."
+                        print(f"Existing spice configuration found: {latest_file} (created on {latest_date}).")
                         self.spice.recall_spice_data(latest_file.split(".")[0])  # Load the latest spice configuration
                     else:
                         print("Starting with a new spice configuration.")
