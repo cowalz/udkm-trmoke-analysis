@@ -39,7 +39,14 @@ RECIPE_DICT = {
 
 
 class DataProposal:
-    def __init__(self, proposal_id: str, proposal_path: str, spice_path: str = None, overwrite: bool = False):
+    def __init__(
+        self,
+        proposal_id: str,
+        proposal_path: str,
+        spice_path: str = None,
+        autofetch_spice: bool = True,
+        overwrite: bool = False,
+    ):
         """
         Initialize DataProposal with proposal ID and path. Check first if the complete data is available locally
         (where the python script is running), otherwise read from the server and copy to local folder.
@@ -53,6 +60,8 @@ class DataProposal:
             Path to the proposal folder on the server (e.g., "/server/data/")
         spice_path : str, optional
             Path to the spice folder on the server (if different from proposal_path + "/spice"), default is None
+        autofetch_spice : bool, optional
+            If True, automatically check for existing spice configuration and load it (default True)
         overwrite : bool, optional
             If True, re-copy data from server even if it exists locally (default False)
         """
@@ -76,7 +85,7 @@ class DataProposal:
             self.spice_path = os.path.join(spice_path, self.proposal_id)
         self.spice = Spice(self, server_path=self.spice_path)
 
-        # Check for existing spice, ask to load latest one (determine from timestamp attribute) or create new
+        # Check for existing spice
         spice_folder_local = os.path.join(self.local_path, "spice")
         if os.path.exists(spice_folder_local):
             existing_files = os.listdir(spice_folder_local)
@@ -93,11 +102,8 @@ class DataProposal:
                 if timestamps:
                     latest_file, latest_timestamp = max(timestamps, key=lambda x: x[1])
                     latest_date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(latest_timestamp))
-                    user_input = input(
-                        f"Existing spice configuration found: {latest_file} (created on {latest_date}). "
-                        "Do you want to load this configuration? (y/n): "
-                    )
-                    if user_input.lower() == "y":
+                    if autofetch_spice:
+                        f"Existing spice configuration found: {latest_file} (created on {latest_date})."
                         self.spice.recall_spice_data(latest_file.split(".")[0])  # Load the latest spice configuration
                     else:
                         print("Starting with a new spice configuration.")

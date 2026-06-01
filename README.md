@@ -1,4 +1,4 @@
-# trMOKE Analysis 1.1.0
+# trMOKE Analysis 1.1.1
 
 Time-resolved MOKE data analysis tools for data from the Femtomag lab (0.044) in the UDKM group at the University of Potsdam.
 Intended for usage with data generated from the [2nd generation trMOKE measurement software](https://gitup.uni-potsdam.de/udkm/lab-software/trmoke).
@@ -11,7 +11,7 @@ Intended for usage with data generated from the [2nd generation trMOKE measureme
 
 ### Setup
 
-In you project venv, install the latest release with pip:
+In your project venv, install the latest release with pip:
 ```bash
 pip install git+https://gitup.uni-potsdam.de/udkm/tools/trmoke-analysis@main
 ```
@@ -30,6 +30,8 @@ This installs the `trmoke_analysis` package along with all runtime dependencies:
 ## Usage
 
 See [Examples/example.ipynb](Examples/example.ipynb) for a complete workflow example.
+
+An overview of the available spices (metadata/parameters for the data evaluation) can be found in [spice.md](spice.md).
 
 
 ## Contributing
@@ -58,4 +60,4 @@ Errors during the execution of this pipeline may indicate issues with code forma
 - UDKM group (udkm-group@uni-potsdam.de)
 
 ## License
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

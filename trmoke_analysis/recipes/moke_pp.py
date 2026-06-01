@@ -86,33 +86,16 @@ def process_moke_pp(data: xr.Dataset, spice: dict) -> xr.Dataset:
             signal_sum[:, :, i, :, :] = up_data + down_data
             signal_diff[:, :, i, :, :] = up_data - down_data
 
-    # Step 5: Shift t0 (from spice) and flip signal (if specified in spice)
+    # Step 5: Shift t0 (from spice)
     t0 = spice.get("t0", 0)
-    sign_0 = spice.get("sign_0", 1)  # sign for first detector
-    sign_1 = spice.get("sign_1", 1)  # sign for second detector
-    sign_2 = spice.get("sign_2", 1)  # sign for third detector
 
     delays -= t0  # Shift time axis by t0 (0 by default)
-    signal_sum[0] *= sign_0  # Flip signal for detector 0 if sign_0 is -1
-    signal_sum[1] *= sign_1  # Flip signal for detector 1 if sign_1 is -1
-    signal_sum[2] *= sign_2  # Flip signal for detector 2 if sign_2 is -1
-    signal_diff[0] *= sign_0  # Flip signal for detector 0 if sign_0 is -1
-    signal_diff[1] *= sign_1  # Flip signal for detector 1 if sign_1 is -1
-    signal_diff[2] *= sign_2  # Flip signal for detector 2 if sign_2 is -1
 
     # Step 6: Average over loops (last dimension) and apply sigmaclipping if specified in spice
     # signal arrays are [detector, fluence, field, delay, loop]
     sigma = spice.get("sigma", -1)
     signal_sum_avg = helpers.average_with_clip(signal_sum, sigma=sigma)  # Result: [detector, fluence, field, delay]
     signal_diff_avg = helpers.average_with_clip(signal_diff, sigma=sigma)  # Result: [detector, fluence, field, delay]
-    # if sigma > 0:
-    #     signal_sum_clipped = sigma_clip(signal_sum, sigma=sigma, axis=-1, masked=False)
-    #     signal_diff_clipped = sigma_clip(signal_diff, sigma=sigma, axis=-1, masked=False)
-    #     signal_sum_avg = np.nanmean(signal_sum_clipped, axis=-1)
-    #     signal_diff_avg = np.nanmean(signal_diff_clipped, axis=-1)
-    # else:
-    #     signal_sum_avg = np.nanmean(signal_sum, axis=-1)  # Result: [detector, fluence, field, delay]
-    #     signal_diff_avg = np.nanmean(signal_diff, axis=-1)
 
     # Step 7: Create final xarray Dataset
     processed_dataset = xr.Dataset(

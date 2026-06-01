@@ -56,7 +56,7 @@ def process_hysteresis(data: xr.Dataset, spice: dict) -> xr.Dataset:
         data_chop_up, data_chop_down = drift_correction(data_chop_up, data_chop_down)
 
     # Step 4: Apply the averaging and sigmaclipping as specified in spice
-    sigma = spice.get("sigma_clip", -1)
+    sigma = spice.get("sigma", -1)
     data_unchop_up_avg = helpers.average_with_clip(data_unchop_up, sigma=sigma)
     data_unchop_down_avg = helpers.average_with_clip(data_unchop_down, sigma=sigma)
     data_chop_up_avg = helpers.average_with_clip(data_chop_up, sigma=sigma)
@@ -91,6 +91,8 @@ def process_hysteresis(data: xr.Dataset, spice: dict) -> xr.Dataset:
     ) / 4
 
     # Step 7: Create final xarray Dataset
+    t0 = spice.get("t0", 0)
+
     processed_dataset = xr.Dataset(
         data_vars={
             "signal_up_pumped": data_unchop_up_avg.detector_data,
@@ -111,7 +113,7 @@ def process_hysteresis(data: xr.Dataset, spice: dict) -> xr.Dataset:
             "detector": data_chop_up.detector.values,
             "field": data_chop_up.field.values,
             "loop": data_chop_up.loop.values,
-            "delay": data_chop_up.delay.values,
+            "delay": data_chop_up.delay.values - t0,  # Shift time axis by t0 (0 by default)
             "fluence": data_chop_up.fluence.values,
             "frames": data.frames.values[::2],
         },
