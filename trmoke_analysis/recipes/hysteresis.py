@@ -50,6 +50,10 @@ def process_hysteresis(data: xr.Dataset, spice: dict) -> xr.Dataset:
     data_chop_up = reshape_branch(data_chop_up)
     data_chop_down = reshape_branch(data_chop_down)
 
+    # Remove incomplete loops where either branch contains missing field values.
+    data_unchop_up, data_unchop_down = remove_incomplete_loops(data_unchop_up, data_unchop_down)
+    data_chop_up, data_chop_down = remove_incomplete_loops(data_chop_up, data_chop_down)
+
     # Step 3: Apply drift correction if specified in spice
     if spice.get("drift_correct", False):
         data_unchop_up, data_unchop_down = drift_correction(data_unchop_up, data_unchop_down)
@@ -144,16 +148,19 @@ def reshape_branch(ds: xr.Dataset) -> xr.Dataset:
     return ds
 
 
-def drift_correction(ds_up: xr.Dataset, ds_down: xr.Dataset) -> tuple[xr.Dataset, xr.Dataset]:
-    # Correct linear drift by comparing hysteresis endpoints between adjacent loops.
-    # 3a: Remove incomplete loops where either branch contains missing field values.
+def remove_incomplete_loops(ds_up: xr.Dataset, ds_down: xr.Dataset) -> tuple[xr.Dataset, xr.Dataset]:
+    # Remove loops where either branch contains missing field values.
     valid_up = ds_up["detector_data"].notnull().all(dim="field")
     valid_down = ds_down["detector_data"].notnull().all(dim="field")
     valid_mask = valid_up & valid_down
     ds_up = ds_up.where(valid_mask, drop=True).copy()
     ds_down = ds_down.where(valid_mask, drop=True).copy()
+    return ds_up, ds_down
 
-    # 3b: Calculate drift in each loop by comparing the start and end point of the hysteresis loop.
+
+def drift_correction(ds_up: xr.Dataset, ds_down: xr.Dataset) -> tuple[xr.Dataset, xr.Dataset]:
+    # Correct linear drift by comparing hysteresis endpoints between adjacent loops.
+    # Calculate drift in each loop by comparing the start and end point of the hysteresis loop.
     drifts = []
     for loop in range(ds_up.sizes["loop"]):
         start_up = ds_up["detector_data"].isel(loop=loop, field=0)
