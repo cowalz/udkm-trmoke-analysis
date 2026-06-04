@@ -168,13 +168,11 @@ def remove_incomplete_loops(ds_up: xr.Dataset, ds_down: xr.Dataset) -> tuple[xr.
     valid_down = ds_down["detector_data"].notnull().all(dim=tuple(dims_to_check))
     valid_both = valid_up & valid_down
 
-    # Extract loop coordinate values and keep only loops that are fully valid
-    loops = ds_up["loop"].values
-    mask = valid_both.values.astype(bool)
-    loops_to_keep = loops[mask]
-
-    ds_up = ds_up.sel(loop=loops_to_keep).copy()
-    ds_down = ds_down.sel(loop=loops_to_keep).copy()
+    # Keep entries only where both branches are complete for the same
+    # (fluence, delay, loop) combination. Use xarray boolean masking so
+    # selection respects all coordinates and dimensions.
+    ds_up = ds_up.where(valid_both, drop=True).copy()
+    ds_down = ds_down.where(valid_both, drop=True).copy()
     return ds_up, ds_down
 
 
