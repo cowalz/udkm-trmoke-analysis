@@ -117,12 +117,16 @@ def process_hysteresis(data: xr.Dataset, spice: dict) -> xr.Dataset:
             "detector": data_chop_up.detector.values,
             "field": data_chop_up.field.values,
             "loop": data_chop_up.loop.values,
-            "delay": data_chop_up.delay.values - t0,  # Shift time axis by t0 (0 by default)
+            "delay": data_chop_up.delay.values,
             "fluence": data_chop_up.fluence.values,
             "frames": data.frames.values[::2],
         },
         attrs=data.attrs,
     )
+
+    # Shift the delay coordinate after assembly to avoid xarray reindexing
+    # the data variables against the shifted coordinate labels.
+    processed_dataset = processed_dataset.assign_coords(delay=processed_dataset.delay - t0)
 
     # Add scan metadata
     processed_dataset.attrs["scan_param"] = scan_param
