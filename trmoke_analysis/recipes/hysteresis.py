@@ -149,12 +149,32 @@ def reshape_branch(ds: xr.Dataset) -> xr.Dataset:
 
 
 def remove_incomplete_loops(ds_up: xr.Dataset, ds_down: xr.Dataset) -> tuple[xr.Dataset, xr.Dataset]:
-    # Remove loops where either branch contains missing field values.
-    valid_up = ds_up["detector_data"].notnull().all(dim="field")
-    valid_down = ds_down["detector_data"].notnull().all(dim="field")
-    valid_mask = valid_up & valid_down
-    ds_up = ds_up.where(valid_mask, drop=True).copy()
-    ds_down = ds_down.where(valid_mask, drop=True).copy()
+    """
+    Remove hysteresis loops that are not finished.
+    A loop is removed if either the up-branch or down-branch contains any NaN
+    in the 'field' sweep (checked across detectors and field points).
+    """
+    # Determine which dimensions to check for completeness
+    dims_to_check = []
+    if "field" in ds_up["detector_data"].dims:
+        dims_to_check.append("field")
+    if "detector" in ds_up["detector_data"].dims:
+        dims_to_check.append("detector")
+    if not dims_to_check:
+        dims_to_check = ["field"]
+
+    # Compute per-loop completeness (True if no NaNs across the checked dims)
+    valid_up = ds_up["detector_data"].notnull().all(dim=tuple(dims_to_check))
+    valid_down = ds_down["detector_data"].notnull().all(dim=tuple(dims_to_check))
+    valid_both = valid_up & valid_down
+
+    # Extract loop coordinate values and keep only loops that are fully valid
+    loops = ds_up["loop"].values
+    mask = valid_both.values.astype(bool)
+    loops_to_keep = loops[mask]
+
+    ds_up = ds_up.sel(loop=loops_to_keep).copy()
+    ds_down = ds_down.sel(loop=loops_to_keep).copy()
     return ds_up, ds_down
 
 
