@@ -1,4 +1,5 @@
 # %%
+import numbers
 import os
 import re
 import shutil
@@ -251,7 +252,7 @@ class DataProposal:
             raise FileNotFoundError(f"Data file not found: {file_path}")
         return xr.load_dataset(file_path)
 
-    def process(self, scan_id: str | int | list | np.ndarray, overwrite: bool = False) -> None:
+    def process(self, scan_id: str | int | list, overwrite: bool = False) -> None:
         """
         Process raw data for the specified scan(s) and save the processed dataset.
 
@@ -264,13 +265,13 @@ class DataProposal:
         """
         self.spice.save_spice_data()  # Save current spice configuration before processing
 
-        if isinstance(scan_id, (str, int)):
+        if isinstance(scan_id, (str, numbers.Integral)):
             self._process_single(scan_id, overwrite=overwrite)
 
         elif isinstance(scan_id, (list, np.ndarray)):
             # batch processing for a list of IDs
             for sid in scan_id:
-                if isinstance(sid, (str, int)):
+                if isinstance(sid, (str, numbers.Integral)):
                     self._process_single(sid, overwrite=overwrite)
                 else:
                     raise ValueError(f"List entry '{sid}' is not a string or integer.")
@@ -289,7 +290,7 @@ class DataProposal:
             If True, overwrite existing processed file (default False)
         """
         # Check if processed file already exists
-        if isinstance(scan_id, int):
+        if isinstance(scan_id, numbers.Integral):
             scan_id_str = f"{scan_id:04d}"
         else:
             scan_id_str = scan_id
