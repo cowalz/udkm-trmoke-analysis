@@ -270,9 +270,13 @@ class DataProposal:
 
         elif isinstance(scan_id, (list, np.ndarray)):
             # batch processing for a list of IDs
+            # use try-except to skip processing if errors occur during singular scans
             for sid in scan_id:
                 if isinstance(sid, (str, numbers.Integral)):
-                    self._process_single(sid, overwrite=overwrite)
+                    try:
+                        self._process_single(sid, overwrite=overwrite)
+                    except Exception as e:
+                        print(f"Error processing scan {sid}: {e}. Skipping this scan.")
                 else:
                     raise ValueError(f"List entry '{sid}' is not a string or integer.")
         else:
