@@ -243,7 +243,7 @@ class DataProposal:
             raise ValueError(
                 f"Invalid kind: {kind}. Must be one of 'raw', 'processed', 'fluence_calibration', 'field_calibration'."
             )
-        if isinstance(scan_id, int):
+        if isinstance(scan_id, numbers.Integral):
             scan_id = f"{scan_id:04d}"  # Convert to zero-padded string
 
         filename = f"{scan_id}{postfix}.nc"
