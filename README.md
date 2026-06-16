@@ -11,9 +11,13 @@ Intended for usage with data generated from the [2nd generation trMOKE measureme
 
 ### Setup
 
-In your project venv, install the latest release with pip:
+In your project venv, install the latest release with pip (requires an SSH key with access to GitUP):
 ```bash
 pip install git+https://gitup.uni-potsdam.de/udkm/tools/trmoke-analysis@main
+```
+Or use the public GitHub mirror:
+```bash
+pip install git+https://github.com/cowalz/udkm-trmoke-analysis@main
 ```
 Replace `main` with `develop` tag if you want to install the potentially unstable development version.
 For a previous version, replace `main` with the desired version tag, e.g. `1.0.0`.
@@ -56,8 +60,8 @@ Errors during the execution of this pipeline may indicate issues with code forma
 
 ## Authors
 
-- Constantin Walz (cwalz@uni-potsdam.de)
-- UDKM group (udkm-group@uni-potsdam.de)
+- Constantin Walz
+- UDKM group
 
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
