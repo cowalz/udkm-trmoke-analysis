@@ -18,7 +18,7 @@ def plot_loopwise_moke_pp(processed_dataset: xr.Dataset, detector_idx: int = 0):
     param2 = processed_dataset.attrs["param2"]
 
     for i, j in np.ndindex(len(processed_dataset[param1].values), len(processed_dataset[param2].values)):
-        fig, ax = plt.subplots(2, 1, dpi=300, figsize=(5, 5), sharex=True)
+        fig, ax = plt.subplots(2, 1, dpi=100, figsize=(5, 5), sharex=True)
 
         # Create selection dictionary for isel
         sel_dict = {"detector": detector_idx, param1: i, param2: j}
@@ -61,15 +61,17 @@ def plot_loopwise_hysteresis(processed_dataset: xr.Dataset, detector_idx: int = 
     param2 = processed_dataset.attrs["param2"]
 
     for i, j in np.ndindex(len(processed_dataset[param1].values), len(processed_dataset[param2].values)):
-        fig, ax = plt.subplots(2, 1, dpi=300, figsize=(5, 5), sharex=True)
+        fig, ax = plt.subplots(2, 1, dpi=100, figsize=(5, 5), sharex=True)
 
         # Create selection dictionary for isel
         sel_dict = {"detector": detector_idx, param1: i, param2: j}
 
         # Plot up and down signals - loopwise
         processed_dataset.signal_up_pumped_loopwise.isel(**sel_dict).plot.line(x=scan_param, ax=ax[0], alpha=0.75)
+        ax[0].set_prop_cycle(None)  # Reset color cycle so that up and down signals have same colors
         processed_dataset.signal_down_pumped_loopwise.isel(**sel_dict).plot.line(x=scan_param, ax=ax[0], alpha=0.75)
         processed_dataset.signal_up_unpumped_loopwise.isel(**sel_dict).plot.line(x=scan_param, ax=ax[1], alpha=0.75)
+        ax[1].set_prop_cycle(None)  # Reset color cycle so that up and down signals have same colors
         processed_dataset.signal_down_unpumped_loopwise.isel(**sel_dict).plot.line(x=scan_param, ax=ax[1], alpha=0.75)
 
         # Overlay averages
@@ -112,7 +114,7 @@ def plot_diode_signal(processed_dataset: xr.Dataset):
     """
     Plot diode signal for pump-probe data.
     """
-    fig, ax = plt.subplots(dpi=300, figsize=(5, 2.5))
+    fig, ax = plt.subplots(dpi=100, figsize=(5, 2.5))
     processed_dataset.diode_signal.plot.line(ax=ax)
     ax.grid()
     plt.tight_layout()
@@ -127,7 +129,7 @@ def plot_overview_moke_pp(processed_dataset: xr.Dataset, detector_idx: int = 0):
     param1 = processed_dataset.attrs["param1"]
 
     for param1_idx in range(len(processed_dataset[param1].values)):
-        fig, ax = plt.subplots(2, 1, dpi=300, figsize=(5, 5), sharex=True)
+        fig, ax = plt.subplots(2, 1, dpi=100, figsize=(5, 5), sharex=True)
 
         # Create selection dictionary
         sel_dict = {"detector": detector_idx, param1: param1_idx}
@@ -159,16 +161,18 @@ def plot_overview_hysteresis(processed_dataset: xr.Dataset, detector_idx: int = 
     param1 = processed_dataset.attrs["param1"]
 
     for param1_idx in range(len(processed_dataset[param1].values)):
-        fig, ax = plt.subplots(2, 1, dpi=300, figsize=(5, 5), sharex=True)
+        fig, ax = plt.subplots(2, 1, dpi=100, figsize=(5, 5), sharex=True)
 
         # Create selection dictionary
         sel_dict = {"detector": detector_idx, param1: param1_idx}
 
         # Plot up and down signals - pumped
         processed_dataset.signal_up_pumped.isel(**sel_dict).plot.line(x=scan_param, ax=ax[0], add_legend=True)
+        ax[0].set_prop_cycle(None)  # Reset color cycle so that up and down signals have same colors
         processed_dataset.signal_down_pumped.isel(**sel_dict).plot.line(x=scan_param, ax=ax[0], add_legend=True)
         # Plot up and down signals - unpumped
         processed_dataset.signal_up_unpumped.isel(**sel_dict).plot.line(x=scan_param, ax=ax[1], add_legend=True)
+        ax[1].set_prop_cycle(None)  # Reset color cycle so that up and down signals have same colors
         processed_dataset.signal_down_unpumped.isel(**sel_dict).plot.line(x=scan_param, ax=ax[1], add_legend=True)
 
         ax[1].set_title(None)

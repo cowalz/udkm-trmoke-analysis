@@ -71,11 +71,29 @@ def process_hysteresis(data: xr.Dataset, spice: dict) -> xr.Dataset:
     shift_y = spice.get("shift_hysteresis", False)
     shift_x = spice.get("shift_hysteresis_x", False)
 
-    data_unchop_up_avg, data_unchop_down_avg = shift_hysteresis(
+    data_unchop_up_avg, data_unchop_down_avg, y_shift_value_unchop, x_shift_value_unchop = shift_hysteresis(
         data_unchop_up_avg, data_unchop_down_avg, shift_y=shift_y, shift_x=shift_x
     )
-    data_chop_up_avg, data_chop_down_avg = shift_hysteresis(
+    data_chop_up_avg, data_chop_down_avg, y_shift_value_chop, x_shift_value_chop = shift_hysteresis(
         data_chop_up_avg, data_chop_down_avg, shift_y=shift_y, shift_x=shift_x
+    )
+
+    # Apply shifts to loopwise data as well to maintain consistency between average and loopwise data.
+    data_unchop_up, data_unchop_down = shift_hysteresis_loopwise(
+        data_unchop_up,
+        data_unchop_down,
+        shift_y=shift_y,
+        shift_x=shift_x,
+        y_shift=y_shift_value_unchop,
+        x_shift=x_shift_value_unchop,
+    )
+    data_chop_up, data_chop_down = shift_hysteresis_loopwise(
+        data_chop_up,
+        data_chop_down,
+        shift_y=shift_y,
+        shift_x=shift_x,
+        y_shift=y_shift_value_chop,
+        x_shift=x_shift_value_chop,
     )
 
     # Step 6: Calculate some hysteresis properties
@@ -208,7 +226,10 @@ def drift_correction(ds_up: xr.Dataset, ds_down: xr.Dataset) -> tuple[xr.Dataset
 
 def shift_hysteresis(
     ds_up: xr.Dataset, ds_down: xr.Dataset, shift_y: bool = False, shift_x: bool = False
-) -> tuple[xr.Dataset, xr.Dataset]:
+) -> tuple[xr.Dataset, xr.Dataset, xr.DataArray | float, xr.DataArray | float]:
+
+    y_shift = 0
+    x_shift = 0
 
     if shift_y:
         if shift_x:
@@ -217,11 +238,12 @@ def shift_hysteresis(
             up_max = ds_up["detector_data"].max(dim="field")
             down_min = ds_down["detector_data"].min(dim="field")
             down_max = ds_down["detector_data"].max(dim="field")
-            shift = (up_max + up_min + down_max + down_min) / 4
-            ds_up["detector_data"] -= shift
-            ds_down["detector_data"] -= shift
+            y_shift = (up_max + up_min + down_max + down_min) / 4
+            ds_up["detector_data"] -= y_shift
+            ds_down["detector_data"] -= y_shift
             # shift along x by aligning coercive fields
             field_axis = ds_up["field"].values
+            x_shifts = []
             for det in range(ds_up["detector_data"].sizes["detector"]):
                 up_slice = ds_up["detector_data"].isel(detector=det).values
                 down_slice = ds_down["detector_data"].isel(detector=det).values
@@ -229,6 +251,7 @@ def shift_hysteresis(
                 coercive_up = np.abs(np.interp(0, up_slice, field_axis))
                 coercive_down = np.abs(np.interp(0, down_slice, field_axis))
                 x_shift = (coercive_up + coercive_down) / 2
+                x_shifts.append(x_shift)
                 shifted_field = field_axis - x_shift
 
                 up_new = np.interp(field_axis, shifted_field, up_slice)
@@ -236,14 +259,41 @@ def shift_hysteresis(
 
                 ds_up["detector_data"][dict(detector=det)] = up_new
                 ds_down["detector_data"][dict(detector=det)] = down_new
+
+            x_shift = xr.DataArray(np.asarray(x_shifts), dims=("detector",), coords={"detector": ds_up["detector"]})
         else:
             # only shift along y. Use the more precise overall mean method for vertical alignment
-            shift = (ds_up["detector_data"].mean(dim="field") + ds_down["detector_data"].mean(dim="field")) / 2
-            ds_up["detector_data"] -= shift
-            ds_down["detector_data"] -= shift
+            y_shift = (ds_up["detector_data"].mean(dim="field") + ds_down["detector_data"].mean(dim="field")) / 2
+            ds_up["detector_data"] -= y_shift
+            ds_down["detector_data"] -= y_shift
+            x_shift = 0
     elif shift_x:
         print(
             "Warning: Shifting along x without shifting along y is not supported! Please also enable shifting along y."
         )
+        x_shift = 0
+        y_shift = 0
+    else:
+        x_shift = 0
+        y_shift = 0
+
+    return ds_up, ds_down, y_shift, x_shift
+
+
+def shift_hysteresis_loopwise(
+    ds_up: xr.Dataset,
+    ds_down: xr.Dataset,
+    shift_y: bool = False,
+    shift_x: bool = False,
+    y_shift: xr.DataArray | float = 0,
+    x_shift: xr.DataArray | float = 0,
+) -> tuple[xr.Dataset, xr.Dataset]:
+    if shift_y:
+        ds_up["detector_data"] = ds_up["detector_data"] - y_shift
+        ds_down["detector_data"] = ds_down["detector_data"] - y_shift
+
+    if shift_x:
+        ds_up["detector_data"] = ds_up["detector_data"].interp(field=ds_up["field"] - x_shift)
+        ds_down["detector_data"] = ds_down["detector_data"].interp(field=ds_down["field"] - x_shift)
 
     return ds_up, ds_down
