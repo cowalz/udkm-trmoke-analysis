@@ -1,4 +1,4 @@
-# trMOKE Analysis 1.1.6
+# trMOKE Analysis 1.1.7
 
 Time-resolved MOKE data analysis tools for data from the Femtomag lab (0.044) in the UDKM group at the University of Potsdam.
 Intended for usage with data generated from the [2nd generation trMOKE measurement software](https://gitup.uni-potsdam.de/udkm/lab-software/trmoke).

@@ -45,7 +45,7 @@ class DataProposal:
         proposal_id: str,
         proposal_path: str,
         spice_path: str = None,
-        autofetch_spice: bool = True,
+        autofetch_spice: bool | str = True,
         overwrite: bool = False,
     ):
         """
@@ -61,8 +61,9 @@ class DataProposal:
             Path to the proposal folder on the server (e.g., "/server/data/")
         spice_path : str, optional
             Path to the spice folder on the server (if different from proposal_path + "/spice"), default is None
-        autofetch_spice : bool, optional
-            If True, automatically check for existing spice configuration and load it (default True)
+        autofetch_spice : bool or str, optional
+            If True, automatically check for existing latest spice configuration and load it.
+            Alternatively, provide a valid hash ID to load a specific spice file (default True)
         overwrite : bool, optional
             If True, re-copy data from server even if it exists locally (default False)
         """
@@ -81,10 +82,13 @@ class DataProposal:
 
         # Build spice registry
         if spice_path is None:
-            self.spice_path = os.path.join(self.server_path, "spice")
+            self.spice_path = self.server_path
         else:
             self.spice_path = os.path.join(spice_path, self.proposal_id)
         self.spice = Spice(self, server_path=self.spice_path)
+
+        # Populate local spice cache from the remote repository on first setup.
+        self._sync_spice_from_server()
 
         # Check for existing spice
         spice_folder_local = os.path.join(self.local_path, "spice")
@@ -103,9 +107,17 @@ class DataProposal:
                 if timestamps:
                     latest_file, latest_timestamp = max(timestamps, key=lambda x: x[1])
                     latest_date = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(latest_timestamp))
-                    if autofetch_spice:
+                    if autofetch_spice is True:
                         print(f"Existing spice configuration found: {latest_file} (created on {latest_date}).")
                         self.spice.recall_spice_data(latest_file.split(".")[0])  # Load the latest spice configuration
+                    elif isinstance(autofetch_spice, str):
+                        try:
+                            self.spice.recall_spice_data(autofetch_spice)
+                        except FileNotFoundError:
+                            print(
+                                f"Spice configuration with hash '{autofetch_spice}' not found. \
+                                Starting with a new spice configuration."
+                            )
                     else:
                         print("Starting with a new spice configuration.")
                 else:
@@ -128,38 +140,88 @@ class DataProposal:
         Sync data from server to local cache.
         Only copies files that are missing or have changed (by size).
         """
-        if not os.path.exists(self.server_path):
-            raise FileNotFoundError(f"Server path not found: {self.server_path}")
+        try:
+            if not os.path.exists(self.server_path):
+                raise FileNotFoundError(f"Server path not found: {self.server_path}")
 
-        os.makedirs(self.local_path, exist_ok=True)
+            os.makedirs(self.local_path, exist_ok=True)
+
+            server_files = {
+                f: os.path.getsize(os.path.join(self.server_path, f))
+                for f in os.listdir(self.server_path)
+                if os.path.isfile(os.path.join(self.server_path, f))
+            }
+
+            if overwrite:
+                files_to_copy = set(server_files)
+            else:
+                local_files = {
+                    f: os.path.getsize(os.path.join(self.local_path, f))
+                    for f in os.listdir(self.local_path)
+                    if os.path.isfile(os.path.join(self.local_path, f))
+                }
+                files_to_copy = {
+                    f for f, size in server_files.items() if f not in local_files or local_files[f] != size
+                }
+
+            if not files_to_copy:
+                print(f"Local cache is up to date ({len(server_files)} files).")
+            else:
+                print(f"Syncing {len(files_to_copy)}/{len(server_files)} files from server...")
+                for f in tqdm(sorted(files_to_copy)):
+                    shutil.copy2(os.path.join(self.server_path, f), os.path.join(self.local_path, f))
+                print("Sync complete.")
+
+        except FileNotFoundError as e:
+            print(e)
+            if not os.path.exists(self.local_path):
+                raise FileNotFoundError(
+                    f"Server unreachable and no local cache found for '{self.proposal_id}'."
+                ) from None
+            print("Loading from local cache.")
+
+        finally:
+            if os.path.exists(self.local_path):
+                self.proposal_overview = self._build_proposal_overview()
+                self._registry = set(self.proposal_overview["scan_id"])
+
+    def _sync_spice_from_server(self) -> None:
+        """
+        Sync spice files from the remote repository to the local cache.
+
+        This mirrors the proposal file sync behavior and backfills any new or changed
+        spice files even when the local spice folder already contains entries.
+        """
+        spice_folder_local = os.path.join(self.local_path, "spice")
+        spice_folder_server = os.path.join(self.spice._server_path, "spice")
+
+        if not os.path.exists(spice_folder_server):
+            print(f"Remote spice folder not found: {spice_folder_server}.")
+            return
+
+        os.makedirs(spice_folder_local, exist_ok=True)
 
         server_files = {
-            f: os.path.getsize(os.path.join(self.server_path, f))
-            for f in os.listdir(self.server_path)
-            if os.path.isfile(os.path.join(self.server_path, f))
+            f: os.path.getsize(os.path.join(spice_folder_server, f))
+            for f in os.listdir(spice_folder_server)
+            if os.path.isfile(os.path.join(spice_folder_server, f))
+        }
+        local_files = {
+            f: os.path.getsize(os.path.join(spice_folder_local, f))
+            for f in os.listdir(spice_folder_local)
+            if os.path.isfile(os.path.join(spice_folder_local, f))
         }
 
-        if overwrite:
-            files_to_copy = set(server_files)
-        else:
-            local_files = {
-                f: os.path.getsize(os.path.join(self.local_path, f))
-                for f in os.listdir(self.local_path)
-                if os.path.isfile(os.path.join(self.local_path, f))
-            }
-            files_to_copy = {f for f, size in server_files.items() if f not in local_files or local_files[f] != size}
+        files_to_copy = {f for f, size in server_files.items() if f not in local_files or local_files[f] != size}
 
         if not files_to_copy:
-            print(f"Local cache is up to date ({len(server_files)} files).")
-        else:
-            print(f"Syncing {len(files_to_copy)}/{len(server_files)} files from server...")
-            for f in tqdm(sorted(files_to_copy)):
-                shutil.copy2(os.path.join(self.server_path, f), os.path.join(self.local_path, f))
-            print("Sync complete.")
+            print(f"Local spice cache is up to date ({len(server_files)} files).")
+            return
 
-        # Update overview and registry after syncing
-        self.proposal_overview = self._build_proposal_overview()
-        self._registry = set(self.proposal_overview["scan_id"])
+        print(f"Syncing {len(files_to_copy)}/{len(server_files)} spice files from remote repository...")
+        for filename in tqdm(sorted(files_to_copy)):
+            shutil.copy2(os.path.join(spice_folder_server, filename), os.path.join(spice_folder_local, filename))
+        print("Spice sync complete.")
 
     def _build_proposal_overview(self):
         """
@@ -508,8 +570,8 @@ class Spice:
     def save_spice_data(self) -> None:
         """
         Update the spice file in the local and remote proposal folder after changes have been made to the spice table.
-        When called first on a new proposal, it will create a 'spice' folder which contains the reduced spice table
-        as csv with a hashed filename to ensure only unique spice fonfigurations are saved. When callled on a
+        When called first on a new proposal, it will create a spice folder which contains the reduced spice table
+        as a NetCDF file with a hashed filename to ensure only unique spice configurations are saved. When called on a
         proposal with existing spice data, it checks first that the current spice configuration is not already saved
         (by comparing the hash) and only saves a new file if the configuration has changed.
         """
@@ -519,20 +581,22 @@ class Spice:
         spice_folder_server = os.path.join(self._server_path, "spice")
         os.makedirs(spice_folder_local, exist_ok=True)
         existing_files_local = os.listdir(spice_folder_local)
+
+        server_available = False
+        existing_files_server = []
         try:
             os.makedirs(spice_folder_server, exist_ok=True)
             existing_files_server = os.listdir(spice_folder_server)
-        except Exception:  # Folder not found, network connection issue
-            print(
-                f"""Warning: Could not create spice folder on server at {spice_folder_server}.
-                Check permissions or connection."""
-            )
+            server_available = True
+        except Exception:
+            print(f"Warning: Could not reach server spice folder at {spice_folder_server}. Saving locally only.")
+
         current_hash = self._generate_hash()
-        filename = f"{current_hash}.nc"  # save as xarray/netcdf with the creation date as an attribute
+        filename = f"{current_hash}.nc"
 
         if any(current_hash in fl for fl in existing_files_local):
             print("Current spice configuration already saved locally.")
-            if not any(current_hash in fs for fs in existing_files_server):
+            if server_available and not any(current_hash in fs for fs in existing_files_server):
                 print("Remote spice repository outdated. Uploading latest spice...")
                 shutil.copy2(os.path.join(spice_folder_local, filename), os.path.join(spice_folder_server, filename))
             return
@@ -543,8 +607,11 @@ class Spice:
         data.attrs["creation_date"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(creation_time))
 
         data.to_netcdf(os.path.join(spice_folder_local, filename))
-        shutil.copy2(os.path.join(spice_folder_local, filename), os.path.join(spice_folder_server, filename))
-        print(f"Spice configuration updated and saved as {filename} in local and server spice folders.")
+        if server_available:
+            shutil.copy2(os.path.join(spice_folder_local, filename), os.path.join(spice_folder_server, filename))
+            print(f"Spice configuration saved as {filename} in local and server spice folders.")
+        else:
+            print(f"Spice configuration saved as {filename} locally only (server unreachable).")
 
     def recall_spice_data(self, hash_str: str) -> None:
         """
@@ -563,6 +630,7 @@ class Spice:
             raise FileNotFoundError(f"Spice configuration file not found: {file_path}")
         data = xr.load_dataset(file_path)
         self._table = data.to_dataframe()
+        self._table = self._canonicalize_table(self._table)
         self._seeded = True
         print(f"Spice configuration '{hash_str}' loaded successfully.")
 
@@ -578,9 +646,16 @@ class Spice:
         """
         import hashlib
 
-        # Convert the table to a string representation and encode it
-        table_str = self.table.to_csv(float_format="%.4f")
+        # Convert a canonicalized table to a string representation and encode it.
+        table_str = self._canonicalize_table(self.table).to_csv(float_format="%.4f", index_label="scan_id")
         return hashlib.sha256(table_str.encode()).hexdigest()
+
+    def _canonicalize_table(self, table: pd.DataFrame) -> pd.DataFrame:
+        """Return a normalized table representation for stable hashing and loading."""
+        canonical_table = table.sort_index().copy()
+        canonical_table = canonical_table.reindex(sorted(canonical_table.columns), axis=1)
+        canonical_table.index.name = "scan_id"
+        return canonical_table
 
     @property
     def parameters(self) -> list:
