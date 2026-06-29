@@ -183,7 +183,7 @@ class DataProposal:
         finally:
             if os.path.exists(self.local_path):
                 self.proposal_overview = self._build_proposal_overview()
-                self._registry = set(self.proposal_overview["scan_id"])
+                self._registry = {f[:-3] for f in os.listdir(self.local_path) if f.endswith(".nc")}
 
     def _sync_spice_from_server(self) -> None:
         """
@@ -236,45 +236,47 @@ class DataProposal:
             DataFrame with columns:
             scan_id, sample_name, scan_parameter, number of frames, delay, fluence and field values
         """
+        all_nc = {filename[:-3] for filename in os.listdir(self.local_path) if filename.endswith(".nc")}
+        raw_ids = sorted(s for s in all_nc if re.match(r"^\d{4}$", s))
+
         overview_data = []
-        for filename in sorted(os.listdir(self.local_path)):
-            if filename.endswith(".nc"):
-                scan_id = filename[:-3]  # Remove .nc extension
-                with xr.open_dataset(os.path.join(self.local_path, filename)) as data:
-                    sample_name = data.attrs.get("sample_name", "Unknown")
-                    scan_parameter = data.attrs.get("scan_parameter", "Unknown")
-                    frames = data.sizes["frames"]
+        for scan_id in raw_ids:
+            filepath = os.path.join(self.local_path, f"{scan_id}.nc")
+            with xr.open_dataset(filepath) as data:
+                sample_name = data.attrs.get("sample_name", "Unknown")
+                scan_parameter = data.attrs.get("scan_parameter", "Unknown")
+                frames = data.sizes["frames"]
 
-                    # Compile info about all parameters (delay, fluence, field)
-                    # add 3 columns for delay field and fluence: min, max, unit and number of unique values
+                notes_list = []
+                for param in ["delay", "fluence", "field"]:
+                    try:
+                        unique_values = np.unique(data.attrs[f"{param}_values"])
+                        if len(unique_values) > 1:
+                            notes_list.append(
+                                f"{unique_values[0]:.2f} ... {unique_values[-1]:.2f} "
+                                f"{data.attrs[f'{param}_unit']} ({len(unique_values)})"
+                            )
+                        else:
+                            notes_list.append(f"{unique_values[0]:.2f} {data.attrs[f'{param}_unit']}")
+                    except Exception:
+                        notes_list.append("Unknown")
 
-                    notes_list = []
-                    for param in ["delay", "fluence", "field"]:
-                        try:
-                            unique_values = np.unique(data.attrs[f"{param}_values"])
-                            if len(unique_values) > 1:
-                                notes_list.append(
-                                    f"{unique_values[0]:.2f} ... {unique_values[-1]:.2f} "
-                                    f"{data.attrs[f'{param}_unit']} ({len(unique_values)})"
-                                )
-                            else:
-                                notes_list.append(f"{unique_values[0]:.2f} {data.attrs[f'{param}_unit']}")
-                        except Exception:
-                            notes_list.append("Unknown")
+            overview_data.append(
+                {
+                    "scan_id": int(scan_id),
+                    "p": "✓" if f"{scan_id}_processed" in all_nc else "",
+                    "f": "✓" if f"{scan_id}_fluence_calibration" in all_nc else "",
+                    "b": "✓" if f"{scan_id}_field_calibration" in all_nc else "",
+                    "sample": sample_name,
+                    "scan_parameter": scan_parameter,
+                    "frames": frames,
+                    "delay_values": notes_list[0] if len(notes_list) > 0 else "Unknown",
+                    "fluence_values": notes_list[1] if len(notes_list) > 1 else "Unknown",
+                    "field_values": notes_list[2] if len(notes_list) > 2 else "Unknown",
+                }
+            )
 
-                overview_data.append(
-                    {
-                        "scan_id": scan_id,
-                        "sample_name": sample_name,
-                        "scan_parameter": scan_parameter,
-                        "frames": frames,
-                        "delay_values": notes_list[0] if len(notes_list) > 0 else "Unknown",
-                        "fluence_values": notes_list[1] if len(notes_list) > 1 else "Unknown",
-                        "field_values": notes_list[2] if len(notes_list) > 2 else "Unknown",
-                    }
-                )
-
-        overview_df = pd.DataFrame(overview_data)
+        overview_df = pd.DataFrame(overview_data).set_index("scan_id")
         return overview_df
 
     def _load(self, scan_id: str | int, kind: str = "raw"):
