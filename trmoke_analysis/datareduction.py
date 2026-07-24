@@ -246,6 +246,10 @@ class DataProposal:
                 sample_name = data.attrs.get("sample_name", "Unknown")
                 scan_parameter = data.attrs.get("scan_parameter", "Unknown")
                 frames = data.sizes["frames"]
+                try:
+                    loops = int(data.attrs["nr_loops"])
+                except Exception:
+                    loops = "Unknown"
 
                 notes_list = []
                 for param in ["delay", "fluence", "field"]:
@@ -270,6 +274,7 @@ class DataProposal:
                     "sample": sample_name,
                     "scan_parameter": scan_parameter,
                     "frames": frames,
+                    "loops": loops,
                     "delay_values": notes_list[0] if len(notes_list) > 0 else "Unknown",
                     "fluence_values": notes_list[1] if len(notes_list) > 1 else "Unknown",
                     "field_values": notes_list[2] if len(notes_list) > 2 else "Unknown",
