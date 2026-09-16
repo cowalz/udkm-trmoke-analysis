@@ -356,9 +356,7 @@ def shift_hysteresis_loopwise(
             def interp_back(curve, shifted_field=shifted_field):
                 return np.interp(field_axis, shifted_field, curve)
 
-            ds_up["detector_data"][dict(detector=det)] = np.apply_along_axis(
-                interp_back, field_ax_nr, block_up.values
-            )
+            ds_up["detector_data"][dict(detector=det)] = np.apply_along_axis(interp_back, field_ax_nr, block_up.values)
             ds_down["detector_data"][dict(detector=det)] = np.apply_along_axis(
                 interp_back, field_ax_nr, ds_down["detector_data"].isel(detector=det).values
             )
