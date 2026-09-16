@@ -67,15 +67,20 @@ def process_hysteresis(data: xr.Dataset, spice: dict) -> xr.Dataset:
     data_chop_down_avg = helpers.average_with_clip(data_chop_down, sigma=sigma)
 
     # Step 5: Shift the hysteresis up/down and left/right to center around zero, as specified from spice
+    # Rotation magnet measurements sweep the rotation angle from 0 to 180° instead of the
+    # field magnitude, so the effective field crosses zero at 90° instead of 0, while the
+    # axis endpoints (0° and 180°) remain the two opposite saturation field directions.
+    rotation_magnet = "rotat" in str(data.attrs.get("magnet_type", "")).lower()
+    zero_field = 90 if rotation_magnet else 0
 
     shift_y = spice.get("shift_hysteresis", False)
     shift_x = spice.get("shift_hysteresis_x", False)
 
     data_unchop_up_avg, data_unchop_down_avg, y_shift_value_unchop, x_shift_value_unchop = shift_hysteresis(
-        data_unchop_up_avg, data_unchop_down_avg, shift_y=shift_y, shift_x=shift_x
+        data_unchop_up_avg, data_unchop_down_avg, shift_y=shift_y, shift_x=shift_x, center=zero_field
     )
     data_chop_up_avg, data_chop_down_avg, y_shift_value_chop, x_shift_value_chop = shift_hysteresis(
-        data_chop_up_avg, data_chop_down_avg, shift_y=shift_y, shift_x=shift_x
+        data_chop_up_avg, data_chop_down_avg, shift_y=shift_y, shift_x=shift_x, center=zero_field
     )
 
     # Apply shifts to loopwise data as well to maintain consistency between average and loopwise data.
@@ -97,8 +102,12 @@ def process_hysteresis(data: xr.Dataset, spice: dict) -> xr.Dataset:
     )
 
     # Step 6: Calculate some hysteresis properties
-    remanence_unchop = (np.abs(data_unchop_up_avg.interp(field=0)) + np.abs(data_unchop_down_avg.interp(field=0))) / 2
-    remanence_chop = (np.abs(data_chop_up_avg.interp(field=0)) + np.abs(data_chop_down_avg.interp(field=0))) / 2
+    remanence_unchop = (
+        np.abs(data_unchop_up_avg.interp(field=zero_field)) + np.abs(data_unchop_down_avg.interp(field=zero_field))
+    ) / 2
+    remanence_chop = (
+        np.abs(data_chop_up_avg.interp(field=zero_field)) + np.abs(data_chop_down_avg.interp(field=zero_field))
+    ) / 2
     saturation_unchop = (
         np.abs(data_unchop_up_avg.isel(field=-1))
         + np.abs(data_unchop_down_avg.isel(field=-1))
@@ -150,6 +159,8 @@ def process_hysteresis(data: xr.Dataset, spice: dict) -> xr.Dataset:
     processed_dataset.attrs["scan_param"] = scan_param
     processed_dataset.attrs["param1"] = param1
     processed_dataset.attrs["param2"] = param2
+    # Record whether the field axis is a rotation angle (1) or the field magnitude (0)
+    processed_dataset.attrs["rotation_magnet"] = int(rotation_magnet)
 
     # Add spice parameters to dataset attributes for record-keeping
     for key, value in spice.items():
@@ -224,8 +235,26 @@ def drift_correction(ds_up: xr.Dataset, ds_down: xr.Dataset) -> tuple[xr.Dataset
     return ds_up, ds_down
 
 
+def find_zero_crossing(field_axis: np.ndarray, signal: np.ndarray) -> float:
+    """
+    Field value where the signal crosses zero, from the sign change with the largest signal
+    jump (robust against noise and independent of branch direction and signal polarity),
+    linearly interpolated between the two bracketing points.
+    Returns NaN if the signal never changes sign.
+    """
+    valid = ~np.isnan(signal)
+    field_axis, signal = field_axis[valid], signal[valid]
+    if len(signal) < 2:
+        return np.nan
+    crossings = np.where(np.diff(np.signbit(signal)))[0]
+    if len(crossings) == 0:
+        return np.nan
+    i = crossings[np.argmax(np.abs(np.diff(signal))[crossings])]
+    return field_axis[i] - signal[i] * (field_axis[i + 1] - field_axis[i]) / (signal[i + 1] - signal[i])
+
+
 def shift_hysteresis(
-    ds_up: xr.Dataset, ds_down: xr.Dataset, shift_y: bool = False, shift_x: bool = False
+    ds_up: xr.Dataset, ds_down: xr.Dataset, shift_y: bool = False, shift_x: bool = False, center: float = 0
 ) -> tuple[xr.Dataset, xr.Dataset, xr.DataArray | float, xr.DataArray | float]:
 
     y_shift = 0
@@ -241,22 +270,46 @@ def shift_hysteresis(
             y_shift = (up_max + up_min + down_max + down_min) / 4
             ds_up["detector_data"] -= y_shift
             ds_down["detector_data"] -= y_shift
-            # shift along x by aligning coercive fields
+            # Shift along x by aligning the loop center with the zero-field position ("center",
+            # 0 for field sweeps, 90° for rotation magnet sweeps). The loop center is the signed
+            # midpoint of the zero crossings of the two branches, determined per detector from
+            # the fluence/delay-averaged curves; the shift is then applied to all slices of that
+            # detector so delay- or fluence-dependent coercivity changes are preserved.
             field_axis = ds_up["field"].values
+            extra_dims = [d for d in ds_up["detector_data"].dims if d not in ("detector", "field")]
             x_shifts = []
             for det in range(ds_up["detector_data"].sizes["detector"]):
-                up_slice = ds_up["detector_data"].isel(detector=det).values
-                down_slice = ds_down["detector_data"].isel(detector=det).values
+                up_curve = ds_up["detector_data"].isel(detector=det).mean(dim=extra_dims).values
+                down_curve = ds_down["detector_data"].isel(detector=det).mean(dim=extra_dims).values
+                crossing_up = find_zero_crossing(field_axis, up_curve)
+                crossing_down = find_zero_crossing(field_axis, down_curve)
+                if np.isnan(crossing_up) or np.isnan(crossing_down):
+                    print(f"Warning: No zero crossing found for detector {det}, x-shift skipped for this detector.")
+                    x_shifts.append(0.0)
+                    continue
+                x_shift_det = (crossing_up + crossing_down) / 2 - center
+                # Shifts of a large fraction of the field range come from noise crossings in
+                # channels without a clean hysteresis, not from a real loop offset
+                if np.abs(x_shift_det) > 0.25 * (field_axis.max() - field_axis.min()):
+                    print(
+                        f"Warning: X-shift of {x_shift_det:.1f} for detector {det} exceeds 25% of the field range "
+                        "(probably no clean hysteresis in this channel), x-shift skipped for this detector."
+                    )
+                    x_shifts.append(0.0)
+                    continue
+                x_shifts.append(x_shift_det)
+                # Interpolate the signals back onto the original field axis (edge values are clamped)
+                shifted_field = field_axis - x_shifts[-1]
+                block_up = ds_up["detector_data"].isel(detector=det)
+                field_ax_nr = block_up.get_axis_num("field")
 
-                coercive_up = np.abs(np.interp(0, up_slice, field_axis))
-                coercive_down = np.abs(np.interp(0, down_slice, field_axis))
-                x_shift = (coercive_up + coercive_down) / 2
-                x_shifts.append(x_shift)
-                shifted_field = field_axis - x_shift
+                def interp_back(curve, shifted_field=shifted_field):
+                    return np.interp(field_axis, shifted_field, curve)
 
-                up_new = np.interp(field_axis, shifted_field, up_slice)
-                down_new = np.interp(field_axis, shifted_field, down_slice)
-
+                up_new = np.apply_along_axis(interp_back, field_ax_nr, block_up.values)
+                down_new = np.apply_along_axis(
+                    interp_back, field_ax_nr, ds_down["detector_data"].isel(detector=det).values
+                )
                 ds_up["detector_data"][dict(detector=det)] = up_new
                 ds_down["detector_data"][dict(detector=det)] = down_new
 
@@ -292,8 +345,22 @@ def shift_hysteresis_loopwise(
         ds_up["detector_data"] = ds_up["detector_data"] - y_shift
         ds_down["detector_data"] = ds_down["detector_data"] - y_shift
 
-    if shift_x:
-        ds_up["detector_data"] = ds_up["detector_data"].interp(field=ds_up["field"] - x_shift)
-        ds_down["detector_data"] = ds_down["detector_data"].interp(field=ds_down["field"] - x_shift)
+    if shift_x and isinstance(x_shift, xr.DataArray):
+        # Apply the per-detector shifts determined from the averaged data (see shift_hysteresis)
+        field_axis = ds_up["field"].values
+        for det in range(ds_up["detector_data"].sizes["detector"]):
+            shifted_field = field_axis - float(x_shift.isel(detector=det))
+            block_up = ds_up["detector_data"].isel(detector=det)
+            field_ax_nr = block_up.get_axis_num("field")
+
+            def interp_back(curve, shifted_field=shifted_field):
+                return np.interp(field_axis, shifted_field, curve)
+
+            ds_up["detector_data"][dict(detector=det)] = np.apply_along_axis(
+                interp_back, field_ax_nr, block_up.values
+            )
+            ds_down["detector_data"][dict(detector=det)] = np.apply_along_axis(
+                interp_back, field_ax_nr, ds_down["detector_data"].isel(detector=det).values
+            )
 
     return ds_up, ds_down

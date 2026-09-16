@@ -48,4 +48,4 @@ can apply.
 | `sigma` | Sigma value for sigma-clipping during averaging, higher values lead to more aggressive clipping of outliers | moke_pp, hysteresis | float > 0 (default: -1, no clipping) |
 | `drift_correct` | Whether to apply drift correction to the signal, which can help remove slow drifts in the data | hysteresis | bool (default: False) |
 | `shift_hysteresis` | Whether to shift the hysteresis loops along the y-axis (along the magnetization axis) | hysteresis | bool (default: False) |
-| `shift_hysteresis_x` | Whether to shift the hysteresis loops along the x-axis (along the field axis). Requires `shift_hysteresis` == True | hysteresis | bool (default: False) |
+| `shift_hysteresis_x` | Whether to shift the hysteresis loops along the x-axis (along the field axis) so the loop center (signed midpoint of the two branch zero crossings) sits at zero field (90° for rotation magnet scans). Applied per detector; channels without a clean hysteresis are skipped with a warning. Requires `shift_hysteresis` == True | hysteresis | bool (default: False) |

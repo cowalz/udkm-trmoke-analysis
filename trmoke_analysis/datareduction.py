@@ -507,6 +507,7 @@ class Spice:
         if not scan_numbers:
             raise ValueError("Registry contains no bare scan numbers (e.g. '0001').")
 
+        self._scan_numbers = scan_numbers
         self._table = pd.DataFrame(index=scan_numbers, dtype=float)
         self._table.index.name = "scan_id"
 
@@ -608,7 +609,9 @@ class Spice:
                 shutil.copy2(os.path.join(spice_folder_local, filename), os.path.join(spice_folder_server, filename))
             return
 
-        data = xr.Dataset.from_dataframe(self._table)
+        # Store only the explicit anchor entries; recall_spice_data rebuilds the full
+        # scan index of the proposal and forward-fill restores the effective values
+        data = xr.Dataset.from_dataframe(self._canonicalize_table(self.changelog))
         creation_time = time.time()
         data.attrs["creation_timestamp"] = creation_time
         data.attrs["creation_date"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(creation_time))
@@ -637,6 +640,9 @@ class Spice:
             raise FileNotFoundError(f"Spice configuration file not found: {file_path}")
         data = xr.load_dataset(file_path)
         self._table = data.to_dataframe()
+        # Add empty rows for scans measured after this spice configuration was saved,
+        # so forward-fill propagates the last set parameters onto the new scans
+        self._table = self._table.reindex(self._table.index.union(self._scan_numbers))
         self._table = self._canonicalize_table(self._table)
         self._seeded = True
         print(f"Spice configuration '{hash_str}' loaded successfully.")
@@ -653,14 +659,21 @@ class Spice:
         """
         import hashlib
 
-        # Convert a canonicalized table to a string representation and encode it.
-        table_str = self._canonicalize_table(self.table).to_csv(float_format="%.4f", index_label="scan_id")
+        # Hash only the explicit anchor entries (changelog): the effective values of all
+        # scans follow from these via forward-fill, so adding new scans to the proposal
+        # does not change the configuration and must not create a new spice file.
+        # float_format rounds to 4 decimals so that float noise (e.g. 0.1 + 0.2) does not
+        # change the hash; lineterminator is pinned as to_csv defaults to the OS line ending.
+        table_str = self._canonicalize_table(self.changelog).to_csv(
+            float_format="%.4f", index_label="scan_id", lineterminator="\n"
+        )
         return hashlib.sha256(table_str.encode()).hexdigest()
 
     def _canonicalize_table(self, table: pd.DataFrame) -> pd.DataFrame:
         """Return a normalized table representation for stable hashing and loading."""
         canonical_table = table.sort_index().copy()
         canonical_table = canonical_table.reindex(sorted(canonical_table.columns), axis=1)
+        canonical_table = canonical_table + 0.0  # normalize -0.0 to 0.0 (would format differently in the hash)
         canonical_table.index.name = "scan_id"
         return canonical_table
 

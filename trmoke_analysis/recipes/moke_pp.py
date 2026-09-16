@@ -12,10 +12,22 @@ else:
 
 
 def process_moke_pp(data: xr.Dataset, spice: dict) -> xr.Dataset:
+    # Rotation magnet measurements flip the field direction by rotating the magnet by 180°
+    # instead of switching the field sign, so the recorded field values are rotation
+    # angles (e.g. 0 and 180) rather than signed field values. Detected from the
+    # magnet_type metadata.
+    rotation_magnet = "rotat" in str(data.attrs.get("magnet_type", "")).lower()
+    if rotation_magnet:
+        print("Rotation magnet measurement detected: pairing field angles theta and theta + 180°.")
+
     # Extract parameters
     fluences = np.sort(np.unique(data.fluence.values))
     fields = np.sort(np.unique(data.field.values))
-    fields_abs = np.sort(np.unique(np.abs(data.field.values)))  # without sign
+    if rotation_magnet:
+        # theta and theta + 180° form one field state (analogous to +field/-field)
+        fields_abs = np.sort(np.unique(np.mod(data.field.values, 180)))
+    else:
+        fields_abs = np.sort(np.unique(np.abs(data.field.values)))  # without sign
     delays = np.sort(np.unique(data.delay.values))
     loops = np.int64(np.sort(np.unique(data.loop.values)))
     params = ["fluence", "field", "delay"]
@@ -64,8 +76,13 @@ def process_moke_pp(data: xr.Dataset, spice: dict) -> xr.Dataset:
 
     # Step 4: Calculate field-up minus field-down
     # signal_loopwise is [detector, fluence, field, delay, loop]
-    # For each unique |field| value, find the corresponding + and - indices
-    unique_field_mags = np.unique(np.abs(fields))
+    # For each field state, find the corresponding up and down indices:
+    # +field and -field for sign switching, theta and theta + 180° for field rotation
+    if rotation_magnet:
+        angles = np.mod(fields, 360)
+        unique_field_mags = np.unique(np.mod(fields, 180))
+    else:
+        unique_field_mags = np.unique(np.abs(fields))
     n_fields = len(unique_field_mags)
 
     # Create arrays directly in desired order: [detector, fluence, field, delay, loop]
@@ -73,9 +90,14 @@ def process_moke_pp(data: xr.Dataset, spice: dict) -> xr.Dataset:
     signal_diff = np.full((3, len(fluences), n_fields, len(delays), len(loops)), np.nan)
 
     for i, field_mag in enumerate(unique_field_mags):
-        # Find indices for +field and -field
-        idx_up = np.where(np.abs(fields - field_mag) < 0.01)[0]
-        idx_down = np.where(np.abs(fields + field_mag) < 0.01)[0]
+        if rotation_magnet:
+            # Find indices for theta (up) and theta + 180° (down)
+            idx_up = np.where(np.abs(angles - field_mag) < 0.01)[0]
+            idx_down = np.where(np.abs(angles - field_mag - 180) < 0.01)[0]
+        else:
+            # Find indices for +field and -field
+            idx_up = np.where(np.abs(fields - field_mag) < 0.01)[0]
+            idx_down = np.where(np.abs(fields + field_mag) < 0.01)[0]
 
         if len(idx_up) > 0 and len(idx_down) > 0:
             # signal_loopwise is [detector, fluence, field, delay, loop]
@@ -124,6 +146,8 @@ def process_moke_pp(data: xr.Dataset, spice: dict) -> xr.Dataset:
     processed_dataset.attrs["scan_param"] = scan_param
     processed_dataset.attrs["param1"] = param1
     processed_dataset.attrs["param2"] = param2
+    # Record how the field states were paired (0: +/- field sign, 1: theta / theta + 180°)
+    processed_dataset.attrs["rotation_magnet"] = int(rotation_magnet)
 
     # Step 8: Apply final adjustment: Remove offsets before t0 by subtracting mean of pre-t0 signal
     # also apply to loopwise signals
