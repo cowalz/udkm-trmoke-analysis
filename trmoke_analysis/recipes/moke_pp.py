@@ -54,6 +54,35 @@ def process_moke_pp(data: xr.Dataset, spice: dict) -> xr.Dataset:
             data_unchop, data_chop, det_idx
         )
 
+    # Step 2b: Hysteresis amplitude from the unpumped (chopped) frames
+    # The unpumped frames sample the static magnetization at field up/down, so their
+    # up - down difference is the full hysteresis amplitude. Dividing signal_diff by
+    # this value converts detector voltage to relative magnetization change
+    # (-1 = full demagnetization). Only the largest field magnitude is used so the
+    # sample is saturated; a rotation magnet has constant field strength, so the
+    # angle pair closest to 0°/180° is used instead.
+    chop_field = data_chop.field.values
+    if rotation_magnet:
+        theta = fields_abs[np.argmin(np.minimum(fields_abs, 180 - fields_abs))]
+        angles = np.mod(chop_field, 360)
+        is_up = np.abs(angles - theta) < 0.01  # theta
+        is_down = np.abs(angles - theta - 180) < 0.01  # theta + 180°
+    else:
+        at_max_field = np.abs(np.abs(chop_field) - np.max(fields_abs)) < 0.01
+        is_up = at_max_field & (chop_field > 0)
+        is_down = at_max_field & (chop_field < 0)
+
+    # Defaults to 1 so dividing by it falls back to the raw (unnormalized) signal
+    hysteresis_amplitude = np.ones(3)
+    if is_up.any() and is_down.any():
+        for det_idx in range(3):
+            det_signal = data_chop.detector_data.isel(detector=det_idx).values
+            amplitude = np.nanmean(det_signal[is_up]) - np.nanmean(det_signal[is_down])
+            if np.isfinite(amplitude):
+                hysteresis_amplitude[det_idx] = amplitude
+    else:
+        print("Warning: cannot determine hysteresis amplitude, defaulting to 1 (no normalization).")
+
     # Step 3: Organize into xarray with proper structure
     # Create empty arrays for each detector: [fluence, field, delay, loop]
     det0_array = np.full((len(fluences), len(fields), len(delays), len(loops)), np.nan)
@@ -130,6 +159,8 @@ def process_moke_pp(data: xr.Dataset, spice: dict) -> xr.Dataset:
             "signal_diff": (["detector", "fluence", "field", "delay"], signal_diff_avg),
             # Diode data
             "diode_signal": (["frames"], diode_signal),
+            # Static hysteresis amplitude per detector (field up - down of the unpumped signal)
+            "hysteresis_amplitude": (["detector"], hysteresis_amplitude),
         },
         coords={
             "detector": data.detector.values,
