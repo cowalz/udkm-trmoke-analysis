@@ -183,16 +183,20 @@ def process_moke_pp(data: xr.Dataset, spice: dict) -> xr.Dataset:
     # Step 8: Apply final adjustment: Remove offsets before t0 by subtracting mean of pre-t0 signal
     # also apply to loopwise signals
     pre_t0 = processed_dataset.sel(delay=processed_dataset.delay < 0)
-    offset_sum = pre_t0.signal_sum.mean(dim="delay")
-    offset_diff = pre_t0.signal_diff.mean(dim="delay")
-    processed_dataset = processed_dataset.assign(
-        {
-            "signal_sum": processed_dataset["signal_sum"] - offset_sum,
-            "signal_diff": processed_dataset["signal_diff"] - offset_diff,
-            "signal_sum_loopwise": processed_dataset["signal_sum_loopwise"] - offset_sum,
-            "signal_diff_loopwise": processed_dataset["signal_diff_loopwise"] - offset_diff,
-        }
-    )
+    if pre_t0.sizes["delay"] > 0:
+        offset_sum = pre_t0.signal_sum.mean(dim="delay")
+        offset_diff = pre_t0.signal_diff.mean(dim="delay")
+        processed_dataset = processed_dataset.assign(
+            {
+                "signal_sum": processed_dataset["signal_sum"] - offset_sum,
+                "signal_diff": processed_dataset["signal_diff"] - offset_diff,
+                "signal_sum_loopwise": processed_dataset["signal_sum_loopwise"] - offset_sum,
+                "signal_diff_loopwise": processed_dataset["signal_diff_loopwise"] - offset_diff,
+            }
+        )
+    else:
+        # The mean of an empty selection is NaN and would wipe out the whole scan
+        print("Warning: no delays before t0, skipping pre-t0 offset subtraction.")
 
     # Add spice parameters to dataset attributes for record-keeping
     for key, value in spice.items():
