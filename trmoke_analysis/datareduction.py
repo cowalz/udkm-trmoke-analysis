@@ -38,6 +38,41 @@ RECIPE_DICT = {
     # add more recipes as needed
 }
 
+# Scan file kinds. Every scan file in a proposal folder is named "<scan_id><postfix>.nc" and is reached
+# via prop.data.<prefix><scan_id> (e.g. prop.data.p0034). The prefix also labels the column of the
+# proposal overview that marks whether the file exists. New kinds of files (e.g. new calibrations)
+# only need to be added here.
+SCAN_KINDS = {
+    # kind: (filename postfix, accessor prefix)
+    "raw": ("", "r"),
+    "processed": ("_processed", "p"),
+    "fluence_calibration": ("_fluence_calibration", "f"),
+    "field_calibration": ("_field_calibration", "b"),
+    "diode_calibration": ("_diode_calibration", "d"),
+}
+_KIND_BY_POSTFIX = {postfix: kind for kind, (postfix, _) in SCAN_KINDS.items()}
+_KIND_BY_PREFIX = {prefix: kind for kind, (_, prefix) in SCAN_KINDS.items()}
+
+
+def _format_scan_id(scan_id: str | int) -> str:
+    """Return the scan ID as a zero-padded 4-digit string (e.g. 34 -> "0034"); strings are passed through."""
+    if isinstance(scan_id, numbers.Integral):
+        return f"{scan_id:04d}"
+    return scan_id
+
+
+def _scan_stem(scan_id: str | int, kind: str) -> str:
+    """File stem (name without ".nc") of a scan file, e.g. ("0034", "processed") -> "0034_processed"."""
+    return f"{_format_scan_id(scan_id)}{SCAN_KINDS[kind][0]}"
+
+
+def _split_scan_stem(stem: str) -> tuple[str, str] | None:
+    """Inverse of _scan_stem: "0034_processed" -> ("0034", "processed"); None if the stem is not a known kind."""
+    match = re.fullmatch(r"(\d{4})(.*)", stem)
+    if match is None or match.group(2) not in _KIND_BY_POSTFIX:
+        return None
+    return match.group(1), _KIND_BY_POSTFIX[match.group(2)]
+
 
 class DataProposal:
     def __init__(
@@ -234,7 +269,8 @@ class DataProposal:
         -------
         pd.DataFrame
             DataFrame with columns:
-            scan_id, sample_name, scan_parameter, number of frames, delay, fluence and field values
+            scan_id, one checkmark column per non-raw kind in SCAN_KINDS (e.g. "p" = processed),
+            sample_name, scan_parameter, number of frames, delay, fluence and field values
         """
         all_nc = {filename[:-3] for filename in os.listdir(self.local_path) if filename.endswith(".nc")}
         raw_ids = sorted(s for s in all_nc if re.match(r"^\d{4}$", s))
@@ -265,12 +301,12 @@ class DataProposal:
                     except Exception:
                         notes_list.append("Unknown")
 
-            overview_data.append(
+            row = {"scan_id": int(scan_id)}
+            for kind, (_, prefix) in SCAN_KINDS.items():
+                if kind != "raw":
+                    row[prefix] = "✓" if _scan_stem(scan_id, kind) in all_nc else ""
+            row.update(
                 {
-                    "scan_id": int(scan_id),
-                    "p": "✓" if f"{scan_id}_processed" in all_nc else "",
-                    "f": "✓" if f"{scan_id}_fluence_calibration" in all_nc else "",
-                    "b": "✓" if f"{scan_id}_field_calibration" in all_nc else "",
                     "sample": sample_name,
                     "scan_parameter": scan_parameter,
                     "frames": frames,
@@ -280,6 +316,7 @@ class DataProposal:
                     "field_values": notes_list[2] if len(notes_list) > 2 else "Unknown",
                 }
             )
+            overview_data.append(row)
 
         overview_df = pd.DataFrame(overview_data).set_index("scan_id")
         return overview_df
@@ -293,29 +330,17 @@ class DataProposal:
         scan_id : str or int
             Identifier for the scan to load (e.g., "0034" or 34)
         kind : str, optional
-            Type of data to load ("raw", "processed", "fluence_calibration or "field_calibration"), default is "raw"
+            Type of data to load, one of the keys of SCAN_KINDS (default is "raw")
 
         Returns
         -------
         xr.Dataset
             The loaded dataset for the specified scan and kind
         """
-        if kind == "raw":
-            postfix = ""
-        elif kind == "processed":
-            postfix = "_processed"
-        elif kind == "fluence_calibration":
-            postfix = "_fluence_calibration"
-        elif kind == "field_calibration":
-            postfix = "_field_calibration"
-        else:
-            raise ValueError(
-                f"Invalid kind: {kind}. Must be one of 'raw', 'processed', 'fluence_calibration', 'field_calibration'."
-            )
-        if isinstance(scan_id, numbers.Integral):
-            scan_id = f"{scan_id:04d}"  # Convert to zero-padded string
+        if kind not in SCAN_KINDS:
+            raise ValueError(f"Invalid kind: {kind}. Must be one of {', '.join(repr(k) for k in SCAN_KINDS)}.")
 
-        filename = f"{scan_id}{postfix}.nc"
+        filename = f"{_scan_stem(scan_id, kind)}.nc"
         file_path = os.path.join(self.local_path, filename)
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"Data file not found: {file_path}")
@@ -363,11 +388,8 @@ class DataProposal:
             If True, overwrite existing processed file (default False)
         """
         # Check if processed file already exists
-        if isinstance(scan_id, numbers.Integral):
-            scan_id_str = f"{scan_id:04d}"
-        else:
-            scan_id_str = scan_id
-        processed_filename = f"{scan_id_str}_processed.nc"
+        scan_id_str = _format_scan_id(scan_id)
+        processed_filename = f"{_scan_stem(scan_id_str, 'processed')}.nc"
         processed_file_path = os.path.join(self.local_path, processed_filename)
         if os.path.exists(processed_file_path) and not overwrite:
             print(f"Processed file already exists for scan {scan_id_str}. Use overwrite=True to re-process.")
@@ -435,44 +457,31 @@ class DataProposal:
 
 class ScanAccessor:
     """
-    Helper class to access scans as attributes of the proposal,
-    e.g. prop.r0001 for raw data and prop.p0001 for processed data.
+    Helper class to access scans as attributes of the proposal, e.g. prop.data.r0001 for raw data
+    and prop.data.p0001 for processed data. The one-letter prefixes are defined in SCAN_KINDS.
     """
 
     def __init__(self, proposal):
         self._proposal = proposal
 
+    @staticmethod
+    def _usage() -> str:
+        return ", ".join(f"{prefix}0001={kind}" for kind, (_, prefix) in SCAN_KINDS.items())
+
     def __getattr__(self, name: str):
         """
-        Access scans as attributes, e.g. prop.r0001 for raw data and prop.p0001 for processed data.
-        The naming convention is as follows:
-        - r0001: raw data for scan 0001
-        - p0001: processed data for scan 0001
-        - f0001: fluence calibration for scan 0001
-        - b0001: field calibration for scan 0001
+        Access scans as attributes: a one-letter kind prefix from SCAN_KINDS followed by the scan number,
+        e.g. r0001 (raw), p0001 (processed), f0001 (fluence calibration), b0001 (field calibration),
+        d0001 (diode calibration).
         """
-        if len(name) < 5 or name[0] not in ("r", "p", "f", "b"):
-            raise AttributeError(
-                f"Invalid accessor '{name}'. Use r0001=raw, p0001=processed, f0001=fluence cal, b0001=field cal."
-            )
-
-        if name[0] == "r":
-            kind = "raw"
-        elif name[0] == "p":
-            kind = "processed"
-        elif name[0] == "f":
-            kind = "fluence_calibration"
-        elif name[0] == "b":
-            kind = "field_calibration"
-
+        kind = _KIND_BY_PREFIX.get(name[:1])
         scan_id = name[1:]
-        try:
-            int(scan_id)  # Check if the remaining part is a valid integer
-        except ValueError:
-            raise AttributeError(f"Invalid scan number in '{name}'.") from None
+        if kind is None or not scan_id.isdigit():
+            raise AttributeError(f"Invalid accessor '{name}'. Use <prefix><scan number>: {self._usage()}.")
 
-        if scan_id not in self._proposal._registry:
-            raise AttributeError(f"Scan {scan_id} not found in proposal.")
+        scan_id = f"{int(scan_id):04d}"
+        if _scan_stem(scan_id, kind) not in self._proposal._registry:
+            raise AttributeError(f"No {kind} data found for scan {scan_id} in proposal.")
 
         return self._proposal._load(scan_id, kind=kind)
 
@@ -481,20 +490,16 @@ class ScanAccessor:
         List available scan accessors based on the proposal registry.
         """
         names = []
-        for scan_id in self._proposal._registry:
-            if re.match(r"^\d{4}$", scan_id):
-                names.append(f"r{scan_id}")
-            elif re.match(r"^\d{4}_processed$", scan_id):
-                names.append(f"p{scan_id[:4]}")
-            elif re.match(r"^\d{4}_field_calibration$", scan_id):
-                names.append(f"b{scan_id[:4]}")
-            elif re.match(r"^\d{4}_fluence_calibration$", scan_id):
-                names.append(f"f{scan_id[:4]}")
-        return names
+        for stem in self._proposal._registry:
+            split = _split_scan_stem(stem)
+            if split is not None:
+                scan_id, kind = split
+                names.append(f"{SCAN_KINDS[kind][1]}{scan_id}")
+        return sorted(names)
 
     def __repr__(self):
-        nr_scans = len(self._proposal._registry)
-        return f"ScanAccessor: {nr_scans} scans found. Use r/p/f/b prefix + scan number (e.g. r0001)."
+        nr_files = len(self._proposal._registry)
+        return f"ScanAccessor: {nr_files} scan files found. Use <prefix><scan number>: {self._usage()}."
 
 
 class Spice:
