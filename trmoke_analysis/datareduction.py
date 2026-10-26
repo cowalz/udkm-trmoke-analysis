@@ -425,6 +425,9 @@ class DataProposal:
             # Save processed data to new NetCDF file
             processed_data.to_netcdf(processed_file_path)
             print(f"Processed data saved to {processed_file_path}.")
+            # Register the new file so the accessor (prop.data.p0034) and the overview see it immediately
+            self._registry.add(_scan_stem(scan_id_str, "processed"))
+            self.proposal_overview.loc[int(scan_id_str), SCAN_KINDS["processed"][1]] = "✓"
 
     def plot_loopwise(self, scan_id: str | int, detector_idx: int = 0):
         try:
