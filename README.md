@@ -55,7 +55,7 @@ Please talk to the maintainers before making your first contribution to get an i
 
 ## Continuous Integration
 
-A minimal GitLab CI test lives in [.scripts/ci_moke_test.py](.scripts/ci_moke_test.py). It runs the notebook's data-reduction path without plotting, processes the example scans, and checks that the expected processed NetCDF files are written.
+A minimal GitLab CI test lives in [.scripts/ci_moke_test.py](.scripts/ci_moke_test.py). It runs the notebook's data-reduction path without plotting, processes the example scans, loads the calibration files of example scan 10 (fluence, field and a synthetic diode calibration), and checks that the expected processed NetCDF files are written.
 Errors during the execution of this pipeline may indicate issues with code formatting (ruff) or bugs in the code itself. Please investigate and fix or discuss any issues before creating a new merge request.
 
 ## Authors

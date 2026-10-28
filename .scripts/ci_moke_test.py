@@ -26,6 +26,15 @@ def main() -> None:
     print(proposal.data.r0017)
     print(proposal.data.r0018)
 
+    # Calibration files of scan 10: fluence and field are flat datasets, the diode calibration
+    # (Simple View MOKE) is a DataTree with one group per detector
+    print(proposal.data.f0010)
+    print(proposal.data.b0010)
+    print(proposal.data.d0010)
+    assert set(proposal.data.d0010.children) == {"detector_1", "detector_2", "detector_3"}
+    for kind in ("f", "b", "d"):
+        assert proposal.proposal_overview.loc[10, kind] == "✓"
+
     proposal.spice.seed({"t0": 0})
     proposal.process([16, 17, 18], overwrite=True)
 

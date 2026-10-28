@@ -53,6 +53,10 @@ SCAN_KINDS = {
 _KIND_BY_POSTFIX = {postfix: kind for kind, (postfix, _) in SCAN_KINDS.items()}
 _KIND_BY_PREFIX = {prefix: kind for kind, (_, prefix) in SCAN_KINDS.items()}
 
+# Loader per kind; everything not listed is a flat Dataset. Diode calibrations (Simple View MOKE) are NetCDF
+# files with one group per detector, which xr.load_dataset silently reads as an empty dataset.
+_KIND_LOADERS = {"diode_calibration": xr.load_datatree}
+
 
 def _format_scan_id(scan_id: str | int) -> str:
     """Return the scan ID as a zero-padded 4-digit string (e.g. 34 -> "0034"); strings are passed through."""
@@ -334,8 +338,9 @@ class DataProposal:
 
         Returns
         -------
-        xr.Dataset
-            The loaded dataset for the specified scan and kind
+        xr.Dataset or xr.DataTree
+            The loaded dataset for the specified scan and kind. Diode calibrations are returned as a DataTree
+            with one child group per detector (e.g. tree["detector_2"].to_dataset()).
         """
         if kind not in SCAN_KINDS:
             raise ValueError(f"Invalid kind: {kind}. Must be one of {', '.join(repr(k) for k in SCAN_KINDS)}.")
@@ -344,7 +349,7 @@ class DataProposal:
         file_path = os.path.join(self.local_path, filename)
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"Data file not found: {file_path}")
-        return xr.load_dataset(file_path)
+        return _KIND_LOADERS.get(kind, xr.load_dataset)(file_path)
 
     def process(self, scan_id: str | int | list, overwrite: bool = False) -> None:
         """
@@ -456,6 +461,48 @@ class DataProposal:
             plotting.plot_overview_hysteresis(dataset, detector_idx=detector_idx)
         else:
             print(f"Overview plotting not implemented for scan type '{scan_type}'.")
+
+    def _plot_calibration(self, scan_id: str | int, kind: str, plot_func) -> None:
+        """Load the calibration file of the given kind for a scan and hand it to the plotting function."""
+        try:
+            data = self._load(scan_id, kind=kind)
+        except FileNotFoundError:
+            print(f"{kind.replace('_', ' ').capitalize()} not found for scan {_format_scan_id(scan_id)}.")
+            return
+        plot_func(data, title=f"{kind.replace('_', ' ')} {_format_scan_id(scan_id)}")
+
+    def plot_fluence_calibration(self, scan_id: str | int) -> None:
+        """
+        Quick plot of the fluence calibration (<scan_id>_fluence_calibration.nc) measured before a scan.
+
+        Parameters
+        ----------
+        scan_id : str or int
+            Identifier of the scan the calibration belongs to (e.g., "0034" or 34)
+        """
+        self._plot_calibration(scan_id, "fluence_calibration", plotting.plot_fluence_calibration)
+
+    def plot_field_calibration(self, scan_id: str | int) -> None:
+        """
+        Quick plot of the field calibration (<scan_id>_field_calibration.nc) measured before a scan.
+
+        Parameters
+        ----------
+        scan_id : str or int
+            Identifier of the scan the calibration belongs to (e.g., "0034" or 34)
+        """
+        self._plot_calibration(scan_id, "field_calibration", plotting.plot_field_calibration)
+
+    def plot_diode_calibration(self, scan_id: str | int) -> None:
+        """
+        Quick plot of the diode calibration (<scan_id>_diode_calibration.nc, Simple View MOKE) measured before a scan.
+
+        Parameters
+        ----------
+        scan_id : str or int
+            Identifier of the scan the calibration belongs to (e.g., "0034" or 34)
+        """
+        self._plot_calibration(scan_id, "diode_calibration", plotting.plot_diode_calibration)
 
 
 class ScanAccessor:
