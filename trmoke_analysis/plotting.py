@@ -231,6 +231,7 @@ def plot_fluence_calibration(dataset: xr.Dataset, title: str | None = None):
 
     # Panel 0: fluence (left axis) and diode voltage (right axis) vs waveplate angle, as in the live plot
     ax[0].plot(angle, fluence, "o-", color="C0")
+    ax[1].axhline(0, color="black", linestyle="--", linewidth=0.8, alpha=0.8)
     ax[0].set_xlabel(f"waveplate angle ({angle_unit})")
     ax[0].set_ylabel(f"fluence ({fluence_unit})", color="C0")
     ax_voltage = ax[0].twinx()
@@ -242,10 +243,11 @@ def plot_fluence_calibration(dataset: xr.Dataset, title: str | None = None):
     m, b = attrs["linearity_m"], attrs["linearity_b"]
     fit_x = np.array([voltage.min(), voltage.max()])
     ax[1].plot(voltage, fluence, "o", color="C0", label="data")
-    ax[1].plot(fit_x, m * fit_x + b, "--", color="dimgray", label=f"fit: m = {m:.3g}, b = {b:.3g}")
+    ax[1].plot(fit_x, m * fit_x + b, "--", color="dimgray", label=f"fit: m = {m:.3f}, b = {b:.3f}")
     ax[1].set_xlabel(f"diode voltage ({voltage_unit})")
     ax[1].set_ylabel(f"fluence ({fluence_unit})")
     ax[1].axhline(0, color="black", linestyle="--", linewidth=0.8, alpha=0.8)
+    ax[1].axvline(0, color="black", linestyle="--", linewidth=0.8, alpha=0.8)
     ax[1].legend()
 
     fwhm_x, fwhm_y = attrs["FWHM_x_µm"], attrs["FWHM_y_µm"]
@@ -275,7 +277,6 @@ def plot_field_calibration(dataset: xr.Dataset, title: str | None = None):
     fig, ax = plt.subplots(dpi=100, figsize=(5, 3.5))
     ax.plot(voltage, dataset.magnetic_field_up.values, "o-", label="up")
     ax.plot(voltage, dataset.magnetic_field_down.values, "s-", label="down")
-    ax.plot(voltage, dataset.magnetic_field.values, "-", color="dimgray", linewidth=2, alpha=0.6, label="mean")
     ax.set_xlabel(f"PSU voltage ({voltage_unit})")
     ax.set_ylabel(f"magnetic field ({field_unit})")
     ax.axhline(0, color="black", linestyle="--", linewidth=0.8, alpha=0.8)
@@ -317,21 +318,26 @@ def plot_diode_calibration(tree: xr.DataTree | xr.Dataset, title: str | None = N
         series = [(int(tree.attrs.get("detector", 1)), tree)]
 
     fig, ax = plt.subplots(dpi=100, figsize=(5, 3.5))
+    # The legend is filled column by column, so passing all errorbar handles followed by all fit handles puts
+    # the data points in the left column and the corresponding fit in the right column of the same row.
+    data_handles, fit_handles = [], []
     for number, ds in series:
         color = _DETECTOR_COLORS[(number - 1) % len(_DETECTOR_COLORS)]
         angle = ds.waveplate_angle.values
         label = ds.attrs.get("channel", f"detector {number}")
-        ax.errorbar(
+        errorbar = ax.errorbar(
             angle, ds.voltage.values, yerr=ds.voltage_error.values, fmt="o", color=color, capsize=2, label=label
         )
         m, b = ds.attrs["fit_m"], ds.attrs["fit_b"]
         fit_x = np.array([angle.min(), angle.max()])
         fit_label = f"m = {m:.3g} ± {ds.attrs['fit_m_err']:.2g} V/°, R² = {ds.attrs['fit_r_squared']:.3f}"
-        ax.plot(fit_x, m * fit_x + b, "-", color=color, alpha=0.7, label=fit_label)
+        (fit_line,) = ax.plot(fit_x, m * fit_x + b, "-", color=color, alpha=0.7, label=fit_label)
+        data_handles.append(errorbar)
+        fit_handles.append(fit_line)
     ax.set_xlabel("waveplate angle (°)")
     ax.set_ylabel("voltage (V)")
     ax.axhline(0, color="black", linestyle="--", linewidth=0.8, alpha=0.8)
-    ax.legend(fontsize="small")
+    ax.legend(handles=data_handles + fit_handles, fontsize="small", ncols=2)
 
     title = _calibration_title(tree.attrs, "diode", title)
     if "setup" in tree.attrs:
