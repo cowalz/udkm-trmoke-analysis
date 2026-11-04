@@ -63,5 +63,7 @@ Errors during the execution of this pipeline may indicate issues with code forma
 - Constantin Walz
 - UDKM group
 
+The spice concept is inspireed by the nx5d project by Florin Boariu (https://nx5d.readthedocs.io/en/latest/)
+
 ## License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
